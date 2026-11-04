@@ -51,6 +51,14 @@ npm run install:test
 
 `npm run build` 生成正式 ID `mira-workbench`；`npm run build:test` 生成 `mira-workbench-test` 且 `test: true`。两者均在 `dist/` 根目录生成 `app-manifest.json`，网站配置使用独立存储键。手动复制时，将整个 `dist/` 的内容放到 `~/.mira/apps/<清单id>/`，不要再嵌套一层 dist。
 
+测试时注意：
+
+- 推荐使用 `npm run install:test`，避免手动复制时目录名与清单 ID 不一致。Windows 上默认安装位置为 `%USERPROFILE%\.mira\apps\mira-workbench-test\`；macOS 上为 `~/.mira/apps/mira-workbench-test/`。
+- 手动安装时，应用目录名必须与包内 `app-manifest.json` 的 `id` 完全一致，包括大小写。例如测试版目录必须是 `mira-workbench-test`，不能使用 `Mira-Workbench`。目录内应直接包含 `app-manifest.json`、`index.html`、图标文件和 `assets/`。
+- 构建时清单由 `vite.config.ts` 生成，版本取自 `package.json`；修改项目根目录的 `app-manifest.json` 不会改变构建结果。检查 `dist/app-manifest.json` 以确认实际 ID、`test` 标志和图标路径。
+- 如果应用显示 DEV 标识但图标缺失或“打开目录”失败，先检查目录名与清单 ID 是否一致，以及清单指定的入口和图标文件是否存在。修正后重新进入“设置 → 应用扩展”，必要时重启 Mira 重新扫描。
+- Windows PowerShell 使用独立测试用户目录时，可先运行 `$env:MIRA_TEST_HOME = 'C:\mira-workbench-test'`，再执行 `npm run install:test`，并使用同一环境变量启动 Mira。
+
 [Mira-Harness](https://github.com/tuyn53/Mira-Harness) 提供本地应用扫描、静态入口、应用扩展设置页与标题栏选择器，并支持线上目录读取与缓存。线上下载安装与升级替换尚未接入。
 
 2026-11-04 已在独立用户目录的 macOS Electron 中确认：设置和前台选择器识别测试包，切换后加载本地 Workbench 首页及 17 个网站卡片。此结果不代表远端网站登录或 Windows 安装版已通过。产品范围见 [PRD](PRD.md)。
