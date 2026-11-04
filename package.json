@@ -1,0 +1,25 @@
+{
+  "name": "mira-workbench",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Mira's optional website collection and in-app browsing sub-application.",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vue-tsc --noEmit && vite build",
+    "build:test": "vue-tsc --noEmit && vite build --mode test",
+    "install:test": "npm run build:test && node scripts/install-local-test.mjs",
+    "preview": "vite preview --host 127.0.0.1"
+  },
+  "dependencies": {
+    "@lobehub/icons-static-svg": "1.101.0",
+    "lucide-vue-next": "^0.468.0",
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.1",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.0",
+    "vue-tsc": "^2.2.0"
+  }
+}
