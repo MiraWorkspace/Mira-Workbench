@@ -9,7 +9,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 
-const props = defineProps<{ brand?: string; name: string; url: string }>()
+const props = defineProps<{ brand?: string; name: string; url: string; favicon?: string | null }>()
 const assets = import.meta.glob<string>([
   '/node_modules/@lobehub/icons-static-svg/icons/{openai,gemini,deepseek,zhipu,kimi,qwen,doubao,minimax,claude,google,wenxin,yuanbao,spark,tiangong,huawei,grok}.svg',
   '/node_modules/@lobehub/icons-static-svg/icons/{openai,gemini,deepseek,zhipu,kimi,qwen,doubao,minimax,claude,google,wenxin,yuanbao,spark,tiangong,huawei,grok}-color.svg',
@@ -23,9 +23,13 @@ const monochromeIcon = computed(() => props.brand && !symbols.has(`${props.brand
 const favicon = computed(() => {
   try { return `${new URL(props.url).origin}/favicon.ico` } catch { return undefined }
 })
-const iconUrl = computed(() => brandIcon.value || favicon.value)
+const iconUrl = computed(() => brandIcon.value || props.favicon || favicon.value)
 const imageLoaded = ref(true)
-const initial = computed(() => [...props.name.trim()][0]?.toUpperCase() || '?')
+const initial = computed(() => {
+  const named = [...props.name.trim()][0]?.toUpperCase()
+  if (named) return named
+  try { return [...new URL(props.url).hostname.replace(/^www\./, '')][0]?.toUpperCase() || '?' } catch { return '?' }
+})
 watch(iconUrl, () => { imageLoaded.value = true })
 </script>
 

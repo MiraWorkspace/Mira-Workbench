@@ -4,7 +4,7 @@
       <nav class="tabs" aria-label="工作区标签页">
         <button class="tab tab--home" :class="{ 'is-active': activeTab === 'home' }" type="button" @click="activeTab = 'home'"><img class="workbench-tab-logo" :src="logoUrl" alt="" /><span>工作台</span></button>
         <button v-for="tab in browserTabs" :key="tab.id" class="tab tab--site" :class="{ 'is-active': activeTab === tab.id }" type="button" :title="tabLabel(tab)" @click="activateTab(tab.id)">
-          <LoaderCircle v-if="tab.loading" class="tab-loading-indicator" :size="17" /><BrandMark v-else :brand="tab.brand" :name="tab.name" :url="tab.url" /><span>{{ tabLabel(tab) }}</span><span class="tab-close" role="button" tabindex="0" :aria-label="`关闭 ${tabLabel(tab)}`" @click.stop="closeTab(tab.id)" @keydown.enter.stop="closeTab(tab.id)"><X :size="13" /></span>
+          <LoaderCircle v-if="tab.loading" class="tab-loading-indicator" :size="17" /><BrandMark v-else :brand="tab.brand" :name="tab.name" :url="tab.url" :favicon="tab.faviconUrl" /><span>{{ tabLabel(tab) }}</span><span class="tab-close" role="button" tabindex="0" :aria-label="`关闭 ${tabLabel(tab)}`" @click.stop="closeTab(tab.id)" @keydown.enter.stop="closeTab(tab.id)"><X :size="13" /></span>
         </button>
       </nav>
       <div class="topbar-actions"><button class="icon-button" type="button" aria-label="显示管理" data-tooltip="显示管理" @click="manageOpen = true"><SlidersHorizontal :size="17" /></button><button class="icon-button" type="button" aria-label="添加网站" data-tooltip="添加网站" @click="openAdd"><Plus :size="17" /></button></div>
@@ -26,12 +26,12 @@
 
     <section v-if="browserTabs.length" v-show="activeTab !== 'home'" class="browser-view">
       <div class="browser-toolbar"><div class="browser-controls"><button type="button" aria-label="后退" title="后退" :disabled="!currentSite?.canGoBack" @click="goBack"><ArrowLeft :size="17" /></button><button type="button" aria-label="前进" title="前进" :disabled="!currentSite?.canGoForward" @click="goForward"><ArrowRight :size="17" /></button><button v-if="pageLoading" type="button" aria-label="停止加载" title="停止加载" @click="stopFrame"><X :size="18" /></button><button v-else type="button" aria-label="刷新页面" title="刷新页面" @click="reloadFrame"><RotateCw :size="15" /></button></div><div class="address-bar"><LockKeyhole :size="13" /><span>{{ currentAddress }}</span></div><button class="external-button" type="button" @click="openExternal"><ExternalLink :size="15" /><span>在浏览器打开</span></button><button class="icon-button" type="button" aria-label="关闭标签页" @click="currentSite && closeTab(currentSite.id)"><X :size="16" /></button></div>
-      <div class="web-content">
+      <div ref="webContent" class="web-content">
         <template v-if="isElectron">
-          <webview v-for="tab in browserTabs" :key="tab.id" :ref="webviewRef(tab.id)" v-show="activeTab === tab.id" class="site-webview" :src="tab.currentUrl" partition="persist:mira-workbench" webpreferences="contextIsolation=yes,nodeIntegration=no,sandbox=yes,webSecurity=yes" allowpopups @did-start-loading="handleLoadStart(tab.id)" @did-stop-loading="handleLoadFinished(tab.id)" @did-navigate="handleNavigate(tab.id, $event)" @did-navigate-in-page="handleNavigate(tab.id, $event)" @page-title-updated="handleTitleUpdate(tab.id, $event)" @did-fail-load="handleLoadError(tab.id, $event)" @will-navigate="handleWillNavigate(tab.id, $event)" />
+          <webview v-for="tab in browserTabs" :key="tab.id" :ref="webviewRef(tab.id)" v-show="activeTab === tab.id" class="site-webview" :src="tab.currentUrl" partition="persist:mira-workbench" webpreferences="contextIsolation=yes,nodeIntegration=no,sandbox=yes,webSecurity=yes" allowpopups @did-start-loading="handleLoadStart(tab.id)" @did-stop-loading="handleLoadFinished(tab.id)" @did-navigate="handleNavigate(tab.id, $event)" @did-navigate-in-page="handleNavigate(tab.id, $event)" @page-title-updated="handleTitleUpdate(tab.id, $event)" @page-favicon-updated="handleFaviconUpdate(tab.id, $event)" @did-fail-load="handleLoadError(tab.id, $event)" @will-navigate="handleWillNavigate(tab.id, $event)" />
         </template>
-        <iframe v-else-if="currentSite" :key="currentSite.id" class="site-iframe" :src="currentSite.url" :title="`${currentSite.name} 网页`" referrerpolicy="no-referrer" sandbox="allow-forms allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-downloads allow-modals allow-pointer-lock allow-presentation" @load="frameLoaded" />
-        <div v-if="loadError && currentSite" class="embed-warning"><div class="warning-icon"><TriangleAlert :size="22" /></div><h2>{{ currentSite.name }}暂时无法在工作台显示</h2><p>{{ loadError }}</p><button class="add-button" type="button" @click="openExternal"><ExternalLink :size="15" />在系统浏览器打开</button><button class="text-button" type="button" @click="loadError = ''">重试嵌入</button></div>
+        <iframe v-else-if="currentSite && !hostBrowserReady && !browserConnecting" :key="currentSite.id" class="site-iframe" :src="currentSite.url" :title="`${currentSite.name} 网页`" referrerpolicy="no-referrer" sandbox="allow-forms allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-downloads allow-modals allow-pointer-lock allow-presentation" @load="frameLoaded" />
+        <div v-if="loadError && currentSite" class="embed-warning"><div class="warning-icon"><TriangleAlert :size="22" /></div><h2>{{ currentSite.name }}暂时无法在工作台显示</h2><p>{{ loadError }}</p><button class="add-button" type="button" @click="openExternal"><ExternalLink :size="15" />在系统浏览器打开</button><button class="text-button" type="button" @click="reloadFrame">重试嵌入</button></div>
       </div>
     </section>
 
@@ -44,15 +44,22 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ArrowLeft, ArrowRight, Check, ExternalLink, LoaderCircle, LockKeyhole, Plus, RotateCw, Search, SlidersHorizontal, TriangleAlert, X } from 'lucide-vue-next'
 import BrandMark from './components/BrandMark.vue'
 import { builtinSites, readSites, sitesStorageKey, type WebsiteEntry } from './data/sites'
+import { connectHostBrowser, type HostBrowserState } from './hostBrowser'
 
-interface BrowserTab extends WebsiteEntry { currentUrl: string; loading: boolean; pageTitle: string; canGoBack: boolean; canGoForward: boolean }
+interface BrowserTab extends WebsiteEntry { currentUrl: string; loading: boolean; pageTitle: string; canGoBack: boolean; canGoForward: boolean; error?: string; faviconUrl?: string | null }
 type BrowserWebview = HTMLElement & { reload: () => void; stop: () => void; getTitle: () => string; canGoBack: () => boolean; canGoForward: () => boolean; goBack: () => void; goForward: () => void }
 const logoUrl = `${import.meta.env.BASE_URL}mira-workbench-logo.png`
-const isElectron = Boolean((window as typeof window & { process?: { versions?: { electron?: string } } }).process?.versions?.electron)
+const isElectron = typeof (document.createElement('webview') as HTMLElement & { getWebContentsId?: unknown }).getWebContentsId === 'function'
+const hostBrowserReady = ref(false)
+const browserConnecting = ref(!isElectron && window.parent !== window && /Electron\//.test(navigator.userAgent))
+const webContent = ref<HTMLDivElement>()
+let hostBrowser: ReturnType<typeof connectHostBrowser> | undefined
+let browserResize: ResizeObserver | undefined
+let browserConnectTimer: number | undefined
 const sites = ref(readSites())
 const browserTabs = ref<BrowserTab[]>([])
 const activeTab = ref('home')
@@ -72,6 +79,8 @@ const currentAddress = computed(() => currentSite.value?.currentUrl || '')
 const pageLoading = computed(() => currentSite.value?.loading ?? false)
 const editingIsBuiltin = computed(() => sites.value.find(site => site.id === editingId.value)?.builtin ?? false)
 watch(sites, saveSites, { deep: true })
+watch([activeTab, siteDialog, manageOpen, loadError, hostBrowserReady], () => { void nextTick(syncHostBrowserLayout) })
+watch(webContent, element => { browserResize?.disconnect(); if (element) browserResize?.observe(element); syncHostBrowserLayout() })
 function saveSites() { localStorage.setItem(sitesStorageKey, JSON.stringify(sites.value)) }
 function openSite(site: WebsiteEntry) {
   const tab = browserTabs.value.find(item => item.id === site.id)
@@ -88,16 +97,19 @@ function openBrowserTab(value: string, site?: WebsiteEntry) {
   browserTabs.value.push(tab)
   activeTab.value = tab.id
   loadError.value = ''
+  if (hostBrowserReady.value) hostBrowser?.open(tab.id, tab.currentUrl)
 }
-function activateTab(id: string) { activeTab.value = id; loadError.value = '' }
+function activateTab(id: string) { activeTab.value = id; loadError.value = tabById(id)?.error || '' }
 function closeTab(id: string) {
   const index = browserTabs.value.findIndex(tab => tab.id === id)
   if (index < 0) return
   clearTitleRefresh(id)
+  hostBrowser?.control(id, 'close')
   webviewEls.delete(id)
   browserTabs.value.splice(index, 1)
   if (activeTab.value === id) {
     activeTab.value = browserTabs.value[Math.max(0, index - 1)]?.id || 'home'
+    loadError.value = currentSite.value?.error || ''
   }
 }
 function openAdd() {
@@ -148,7 +160,9 @@ function reloadFrame() {
   const tab = currentSite.value
   if (!tab) return
   setTabLoading(tab.id, true)
-  if (isElectron) {
+  loadError.value = ''; tab.error = undefined
+  if (hostBrowserReady.value) hostBrowser?.control(tab.id, 'reload')
+  else if (isElectron) {
     const webview = webviewEls.get(tab.id)
     if (!webview) { setTabLoading(tab.id, false); return }
     webview.reload()
@@ -158,12 +172,13 @@ function reloadFrame() {
     if (frame) frame.src = frame.src
   }
 }
-function goBack() { const tab = currentSite.value, webview = tab && webviewEls.get(tab.id); if (webview?.canGoBack()) webview.goBack() }
-function goForward() { const tab = currentSite.value, webview = tab && webviewEls.get(tab.id); if (webview?.canGoForward()) webview.goForward() }
+function goBack() { const tab = currentSite.value; if (tab && hostBrowserReady.value) hostBrowser?.control(tab.id, 'back'); else { const webview = tab && webviewEls.get(tab.id); if (webview?.canGoBack()) webview.goBack() } }
+function goForward() { const tab = currentSite.value; if (tab && hostBrowserReady.value) hostBrowser?.control(tab.id, 'forward'); else { const webview = tab && webviewEls.get(tab.id); if (webview?.canGoForward()) webview.goForward() } }
 function stopFrame() {
   const tab = currentSite.value
   if (!tab) return
-  if (isElectron) webviewEls.get(tab.id)?.stop()
+  if (hostBrowserReady.value) hostBrowser?.control(tab.id, 'stop')
+  else if (isElectron) webviewEls.get(tab.id)?.stop()
   else {
     try { document.querySelector<HTMLIFrameElement>('.site-iframe')?.contentWindow?.stop() } catch { /* Cross-origin iframe control is optional. */ }
   }
@@ -200,7 +215,7 @@ function refreshTabTitle(id: string) {
 function handleLoadStart(id: string) {
   const tab = tabById(id)
   clearTitleRefresh(id)
-  if (tab) { tab.loading = true; tab.pageTitle = '' }
+  if (tab) { tab.loading = true; tab.pageTitle = ''; tab.faviconUrl = undefined }
 }
 function handleLoadFinished(id: string) {
   setTabLoading(id, false)
@@ -242,8 +257,32 @@ function handleWillNavigate(id: string, event: Event) {
     if (!['http:', 'https:'].includes(next.protocol)) { event.preventDefault(); window.open(url, '_blank', 'noopener,noreferrer') }
   } catch { event.preventDefault() }
 }
+function handleFaviconUpdate(id: string, event: Event) {
+  const source = event as Event & { favicons?: unknown[] }
+  const favicon = source.favicons?.find((icon): icon is string => {
+    if (typeof icon !== 'string') return false
+    try { return ['http:', 'https:'].includes(new URL(icon).protocol) } catch { return false }
+  })
+  const tab = tabById(id)
+  if (tab && favicon) tab.faviconUrl = favicon
+}
 function applyTheme(theme: unknown) {
   if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme
+}
+function syncHostBrowserLayout() {
+  if (hostBrowserReady.value) hostBrowser?.layout(activeTab.value, webContent.value, activeTab.value !== 'home' && !siteDialog.value && !manageOpen.value && !loadError.value)
+}
+function handleHostBrowserState(state: HostBrowserState) {
+  const tab = tabById(state.tabId)
+  if (!tab) return
+  if (state.url) tab.currentUrl = state.url
+  if (state.title) tab.pageTitle = state.title
+  tab.loading = state.loading
+  tab.canGoBack = state.canGoBack ?? false
+  tab.canGoForward = state.canGoForward ?? false
+  tab.error = state.error
+  if (state.faviconUrl !== undefined) tab.faviconUrl = state.faviconUrl
+  if (activeTab.value === tab.id) loadError.value = state.error || ''
 }
 function handlePlatformMessage(event: MessageEvent) {
   if (event.source !== window.parent) return
@@ -268,11 +307,23 @@ function relayMiraShortcut(event: KeyboardEvent) {
   }, '*')
 }
 onMounted(() => {
+  if (!isElectron && window.parent !== window) {
+    hostBrowser = connectHostBrowser(() => {
+      hostBrowserReady.value = true; browserConnecting.value = false
+      window.clearTimeout(browserConnectTimer)
+      for (const tab of browserTabs.value) hostBrowser?.open(tab.id, tab.currentUrl)
+      void nextTick(syncHostBrowserLayout)
+    }, handleHostBrowserState)
+    browserResize = new ResizeObserver(syncHostBrowserLayout)
+    if (webContent.value) browserResize.observe(webContent.value)
+    browserConnectTimer = window.setTimeout(() => { browserConnecting.value = false }, 1500)
+  }
   window.addEventListener('message', handlePlatformMessage)
   window.addEventListener('keydown', relayMiraShortcut)
   applyTheme(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
 })
 onUnmounted(() => {
+  hostBrowser?.dispose(); browserResize?.disconnect(); window.clearTimeout(browserConnectTimer)
   for (const id of titleRefreshTimers.keys()) clearTitleRefresh(id)
   window.removeEventListener('message', handlePlatformMessage)
   window.removeEventListener('keydown', relayMiraShortcut)
