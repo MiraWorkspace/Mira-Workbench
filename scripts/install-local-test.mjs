@@ -15,4 +15,4 @@ if (existsSync(target)) {
 }
 mkdirSync(dirname(target), { recursive: true })
 cpSync(source, target, { recursive: true })
-console.log(`已安装测试应用：${target}\n进入新版 Mira 的设置 → 应用扩展，即会自动扫描。`)
+console.log(`已安装测试应用：${target}\n进入 Mira 的设置 → 应用扩展，即会自动扫描。`)

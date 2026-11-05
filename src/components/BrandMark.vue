@@ -1,6 +1,7 @@
 <template>
-  <span class="brand-mark" :class="{ 'brand-mark--fallback': !iconUrl && !imageLoaded }" aria-hidden="true">
-    <img v-if="iconUrl && imageLoaded" :src="iconUrl" alt="" @error="imageLoaded = false" />
+  <span class="brand-mark" :class="{ 'brand-mark--fallback': !iconUrl || !imageLoaded }" aria-hidden="true">
+    <span v-if="monochromeIcon" class="brand-mark__symbol" :style="{ maskImage: `url(${monochromeIcon})` }" />
+    <img v-else-if="iconUrl && imageLoaded" :src="iconUrl" alt="" @error="imageLoaded = false" />
     <span v-else>{{ initial }}</span>
   </span>
 </template>
@@ -18,6 +19,7 @@ const brandIcon = computed(() => {
   if (!props.brand) return undefined
   return symbols.get(`${props.brand}-color`) || symbols.get(props.brand)
 })
+const monochromeIcon = computed(() => props.brand && !symbols.has(`${props.brand}-color`) ? symbols.get(props.brand) : undefined)
 const favicon = computed(() => {
   try { return `${new URL(props.url).origin}/favicon.ico` } catch { return undefined }
 })
@@ -28,7 +30,8 @@ watch(iconUrl, () => { imageLoaded.value = true })
 </script>
 
 <style scoped>
-.brand-mark { display: grid; width: 52px; height: 52px; place-items: center; overflow: hidden; color: #303944; font-size: 25px; font-weight: 650; }
+.brand-mark { display: grid; width: 40px; height: 40px; place-items: center; overflow: hidden; color: var(--brand-ink, #000); font-size: 25px; font-weight: 650; }
+.brand-mark__symbol { width: 100%; height: 100%; background: currentColor; mask-repeat: no-repeat; mask-position: center; mask-size: contain; }
 .brand-mark img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .brand-mark--fallback { border: 1px solid color-mix(in srgb, currentColor 12%, transparent); border-radius: 14px; background: color-mix(in srgb, currentColor 5%, transparent); }
 </style>

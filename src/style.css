@@ -1,4 +1,4 @@
-:root { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #22262c; background: #f7f8fa; font-synthesis: none; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; --ink: #22262c; --muted: #818793; --line: #e7e9ed; --accent: #476b5b; --accent-light: #e9f0ec; --surface: #fff; --surface-soft: #f8f8f9; --surface-muted: #f2f4f3; --text: #22262c; --text-muted: #818793; }
+:root { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #22262c; background: #f7f8fa; font-synthesis: none; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; --ink: #22262c; --muted: #818793; --line: #e7e9ed; --accent: #476b5b; --accent-light: #e9f0ec; --surface: #fff; --surface-soft: #f8f8f9; --surface-muted: #f2f4f3; --text: #22262c; --text-muted: #818793; --brand-ink: #000; --site-border: #f2f2f2; --site-hover: #f5f5f5; --site-hover-border: #eaeaea; --site-name: #737373; }
 * { box-sizing: border-box; }
 * { scrollbar-width: none; }
 *::-webkit-scrollbar { display: none; width: 0; height: 0; }
@@ -18,6 +18,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid #678a78; outline-
 .tab--site { max-width: 180px; gap: 7px; padding: 0 10px; }
 .tab--site .brand-mark { width: 17px; height: 17px; font-size: 12px; }
 .tab--site .brand-mark--fallback { border-radius: 5px; }
+.tab-loading-indicator { flex-shrink: 0; color: var(--accent); animation: browser-loading-spin .9s linear infinite; }
 .tab--site > span:nth-child(2) { max-width: 82px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tab-close { display: grid; width: 18px; height: 18px; place-items: center; border-radius: 5px; opacity: .52; }
 .tab-close:hover { background: #eceef1; opacity: 1; }
@@ -42,13 +43,10 @@ h1, h2, p { margin-top: 0; }
 .search-box input::placeholder { color: #a2a8ae; }
 .search-box > button { display: grid; width: 22px; height: 22px; flex-shrink: 0; place-items: center; border: 0; border-radius: 5px; background: transparent; color: #848b91; cursor: pointer; }
 .site-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 20px 18px; }
-.site-card { position: relative; display: flex; min-width: 0; min-height: 112px; flex-direction: column; align-items: center; justify-content: flex-start; padding: 8px 6px 10px; border: 1px solid transparent; border-radius: 12px; background: transparent; text-align: center; cursor: pointer; transition: background .16s ease, transform .16s ease; }
-.site-card:hover { background: var(--surface-muted); transform: translateY(-1px); }
-.site-icon { display: grid; width: 58px; height: 58px; place-items: center; overflow: hidden; border: 1px solid #e7e9ed; border-radius: 13px; background: var(--surface); color: var(--ink); transition: border-color .16s ease, background .16s ease; }
-.site-card:hover .site-icon { border-color: color-mix(in srgb, var(--accent) 22%, var(--line)); background: var(--surface-muted); }
-.site-card__name { max-width: 100%; margin-top: 9px; overflow: hidden; color: #343a3f; font-size: 12px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
-.site-menu { position: absolute; right: 9px; bottom: 9px; display: grid; width: 24px; height: 22px; place-items: center; border-radius: 5px; color: #9ba1a7; opacity: 0; }
-.site-card:hover .site-menu, .site-menu:focus-visible { background: #f2f4f3; opacity: 1; }
+.site-card { position: relative; display: flex; min-width: 0; min-height: 112px; flex-direction: column; align-items: center; justify-content: flex-start; padding: 8px 6px 10px; border: 1px solid transparent; border-radius: 12px; background: transparent; text-align: center; cursor: pointer; }
+.site-icon { display: grid; width: 58px; height: 58px; place-items: center; overflow: hidden; border: 1px solid var(--site-border); border-radius: 14px; background: transparent; color: var(--brand-ink); transition: border-color .16s ease, background .16s ease; }
+.site-card:hover .site-icon, .site-card:focus-visible .site-icon { border-color: var(--site-hover-border); background: var(--site-hover); }
+.site-card__name { max-width: 100%; margin-top: 9px; overflow: hidden; color: var(--site-name); font-size: 13px; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
 .custom-mark { position: absolute; top: 15px; right: 14px; color: #728579; font-size: 9px; }
 .empty-state { display: flex; min-height: 250px; flex-direction: column; align-items: center; justify-content: center; color: #879087; text-align: center; }
 .empty-state > span { display: grid; width: 46px; height: 46px; margin-bottom: 14px; place-items: center; border: 1px solid #e5e9e6; border-radius: 14px; background: var(--surface); color: #789080; }
@@ -60,6 +58,10 @@ h1, h2, p { margin-top: 0; }
 .browser-controls { display: flex; gap: 3px; }
 .browser-controls button { display: grid; width: 29px; height: 29px; place-items: center; border: 0; border-radius: 6px; background: transparent; color: #7d858c; cursor: pointer; }
 .browser-controls button:hover { background: #f1f3f4; color: #37413a; }
+.browser-controls button:disabled { color: #c1c6ca; cursor: default; }
+.browser-controls button:disabled:hover { background: transparent; color: #c1c6ca; }
+@keyframes browser-loading-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .tab-loading-indicator { animation: none; } }
 .address-bar { display: flex; height: 30px; min-width: 0; flex: 1; align-items: center; gap: 8px; padding: 0 12px; border: 1px solid #eceef0; border-radius: 6px; background: #f8f9fa; color: #858d94; font-size: 10px; }
 .address-bar span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .external-button { display: inline-flex; height: 30px; flex-shrink: 0; align-items: center; gap: 7px; padding: 0 9px; border: 1px solid #e7e9eb; border-radius: 6px; background: white; color: #68736c; font-size: 10px; cursor: pointer; }
@@ -91,7 +93,8 @@ h1, h2, p { margin-top: 0; }
 .manage-item { display: flex; min-height: 45px; align-items: center; gap: 10px; border-bottom: 1px solid #f0f1f0; color: #47504a; font-size: 11px; }
 .manage-item .brand-mark { width: 24px; height: 24px; font-size: 14px; }
 .manage-item .brand-mark--fallback { border-radius: 6px; }
-.manage-item input { margin-left: auto; accent-color: #587461; }
+.manage-edit { margin-left: auto; }
+.manage-item input { margin-left: 0; accent-color: #587461; }
 .manage-dialog .dialog-actions { padding-top: 3px; }
 
 [data-theme='dark'] {
@@ -100,7 +103,12 @@ h1, h2, p { margin-top: 0; }
   --muted: #b7b7bf;
   --line: #47484f;
   --accent-light: #263b31;
-  --surface: #202124;
+  --surface: #303030;
+  --brand-ink: #fff;
+  --site-border: #3e3e3e;
+  --site-hover: #4a4a4a;
+  --site-hover-border: #515151;
+  --site-name: #a0a0a0;
   --surface-soft: #292a2e;
   --surface-muted: #38393f;
   --text: #f5f5f6;
@@ -111,8 +119,7 @@ h1, h2, p { margin-top: 0; }
 [data-theme='dark'] .topbar { background: var(--surface-soft); }
 [data-theme='dark'] .tab.is-active { color: var(--text); }
 [data-theme='dark'] .tab-close:hover,
-[data-theme='dark'] .icon-button:hover,
-[data-theme='dark'] .site-card:hover .site-menu { background: var(--surface-muted); }
+[data-theme='dark'] .icon-button:hover { background: var(--surface-muted); }
 [data-theme='dark'] .icon-button:hover { border-color: var(--line); color: var(--text); }
 [data-theme='dark'] .home-view,
 [data-theme='dark'] .search-box,
@@ -133,14 +140,12 @@ h1, h2, p { margin-top: 0; }
 [data-theme='dark'] .manage-dialog,
 [data-theme='dark'] .warning-icon { border-color: var(--line); }
 [data-theme='dark'] .search-box input,
-[data-theme='dark'] .site-card__name,
 [data-theme='dark'] .dialog-heading h2,
 [data-theme='dark'] .embed-warning h2 { color: var(--text); }
 [data-theme='dark'] .search-box input::placeholder,
 [data-theme='dark'] .manage-copy,
 [data-theme='dark'] .site-dialog form > label { color: var(--text-muted); }
 [data-theme='dark'] .site-card { background: transparent; border-color: transparent; }
-[data-theme='dark'] .site-card:hover { background: var(--surface-muted); }
 [data-theme='dark'] .browser-toolbar { border-color: var(--line); }
 [data-theme='dark'] .address-bar,
 [data-theme='dark'] .site-iframe,
