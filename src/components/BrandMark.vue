@@ -1,7 +1,6 @@
 <template>
-  <span class="brand-mark" :class="{ 'brand-mark--fallback': !iconUrl || !imageLoaded }" aria-hidden="true">
-    <span v-if="monochromeIcon" class="brand-mark__symbol" :style="{ maskImage: `url(${monochromeIcon})` }" />
-    <img v-else-if="iconUrl && imageLoaded" :src="iconUrl" alt="" @error="imageLoaded = false" />
+  <span class="brand-mark" :class="{ 'brand-mark--fallback': !imageLoaded }" aria-hidden="true">
+    <img v-if="iconUrl" :src="iconUrl" alt="" @error="nextIcon" />
     <span v-else>{{ initial }}</span>
   </span>
 </template>
@@ -9,28 +8,24 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 
-const props = defineProps<{ brand?: string; name: string; url: string; favicon?: string | null }>()
-const assets = import.meta.glob<string>([
-  '/node_modules/@lobehub/icons-static-svg/icons/{openai,gemini,deepseek,zhipu,kimi,qwen,doubao,minimax,claude,google,wenxin,yuanbao,spark,tiangong,huawei,grok}.svg',
-  '/node_modules/@lobehub/icons-static-svg/icons/{openai,gemini,deepseek,zhipu,kimi,qwen,doubao,minimax,claude,google,wenxin,yuanbao,spark,tiangong,huawei,grok}-color.svg',
-], { eager: true, query: '?url&no-inline', import: 'default' })
-const symbols = new Map(Object.entries(assets).map(([path, url]) => [path.split('/').pop()!.replace(/\.svg$/, ''), url]))
-const brandIcon = computed(() => {
-  if (!props.brand) return undefined
-  return symbols.get(`${props.brand}-color`) || symbols.get(props.brand)
-})
-const monochromeIcon = computed(() => props.brand && !symbols.has(`${props.brand}-color`) ? symbols.get(props.brand) : undefined)
+const props = defineProps<{ brand?: string; name: string; url: string; favicon?: string | null; customIcon?: string }>()
+const extensions: Record<string, string> = { chatgpt: 'png', claude: 'png', deepseek: 'svg', doubao: 'png', gemini: 'png', google: 'svg', grok: 'png', kimi: 'ico', minimax: 'png', nami: 'svg', qwen: 'png', tiangong: 'png', wenxin: 'ico', xiaoyi: 'png', xinghuo: 'ico', yuanbao: 'png', zhipu: 'png' }
+const brandIcon = computed(() => props.brand && extensions[props.brand] ? `${import.meta.env.BASE_URL}favicons/${props.brand}.${extensions[props.brand]}` : undefined)
 const favicon = computed(() => {
   try { return `${new URL(props.url).origin}/favicon.ico` } catch { return undefined }
 })
-const iconUrl = computed(() => brandIcon.value || props.favicon || favicon.value)
-const imageLoaded = ref(true)
+const failed = ref(false)
+const customFailed = ref(false)
+const brandFailed = ref(false)
+const iconUrl = computed(() => !brandFailed.value && brandIcon.value ? brandIcon.value : !failed.value ? props.favicon || favicon.value : !customFailed.value ? props.customIcon : undefined)
+const imageLoaded = computed(() => Boolean(iconUrl.value))
 const initial = computed(() => {
   const named = [...props.name.trim()][0]?.toUpperCase()
   if (named) return named
   try { return [...new URL(props.url).hostname.replace(/^www\./, '')][0]?.toUpperCase() || '?' } catch { return '?' }
 })
-watch(iconUrl, () => { imageLoaded.value = true })
+function nextIcon() { if (!brandFailed.value && brandIcon.value) brandFailed.value = true; else if (!failed.value) failed.value = true; else customFailed.value = true }
+watch(() => [props.url, props.favicon, props.brand, props.customIcon], () => { failed.value = false; customFailed.value = false; brandFailed.value = false })
 </script>
 
 <style scoped>

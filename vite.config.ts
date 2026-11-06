@@ -13,7 +13,7 @@ export default defineConfig(({ mode }) => {
         manifestVersion: 1, id: appId, name: 'Mira Workbench', version: pkg.version,
         description: '聚合常用 AI 网站与搜索工具，支持自定义网站和内部标签页。',
         icon: 'mira-workbench-logo.png', entry: 'index.html', test,
-        minShellVersion: '0.1.0-beta.1', platformApi: { major: 1, minor: 0 }, requiredCapabilities: [],
+        minShellVersion: '0.1.0-beta.1', platformApi: { major: 1, minor: 0 }, requiredCapabilities: ['storage:app', 'appearance:read', 'workbench:manage'],
       }, null, 2) + '\n' })
     },
   }],

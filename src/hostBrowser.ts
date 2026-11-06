@@ -1,7 +1,34 @@
+import type { MiraAppSdk } from '@mira/app-sdk'
+
 export interface HostBrowserState {
   tabId: string; url?: string; title?: string; loading: boolean; canGoBack?: boolean; canGoForward?: boolean; error?: string; faviconUrl?: string | null
 }
 export type BrowserAction = 'back' | 'forward' | 'reload' | 'stop' | 'close'
+
+export function connectPlatformBrowser(sdk: MiraAppSdk, state: (value: HostBrowserState) => void, openTab: (url: string) => void) {
+  let disposed = false
+  const receive = (event: MessageEvent) => {
+    if (event.source !== window || event.data?.type !== 'mira:workbench-browser-event') return
+    const value = event.data.value
+    if (value?.type === 'state' && typeof value.tabId === 'string') state(value)
+    else if (value?.type === 'open-tab' && typeof value.url === 'string') openTab(value.url)
+  }
+  window.addEventListener('message', receive)
+  const send = (request: Parameters<typeof sdk.workbench.browser>[0]) => {
+    void sdk.workbench.browser(request).catch(() => {
+      if (!disposed && request.type === 'open') state({ tabId: request.tabId, loading: false, error: '网页无法打开，请重试。' })
+    })
+  }
+  return {
+    open(tabId: string, url: string) { send({ type: 'open', tabId, url }) },
+    control(tabId: string, action: BrowserAction) { send({ type: 'control', tabId, action }) },
+    layout(tabId: string, element: HTMLElement | undefined, visible: boolean) {
+      const bounds = element?.getBoundingClientRect()
+      send({ type: 'layout', tabId, visible: visible && Boolean(bounds?.width && bounds.height), bounds: bounds ? { x: Math.max(0, bounds.x), y: Math.max(0, bounds.y), width: bounds.width, height: bounds.height } : { x: 0, y: 0, width: 0, height: 0 } })
+    },
+    dispose() { disposed = true; window.removeEventListener('message', receive) },
+  }
+}
 
 export function connectHostBrowser(connected: () => void, state: (value: HostBrowserState) => void) {
   let port: MessagePort | undefined

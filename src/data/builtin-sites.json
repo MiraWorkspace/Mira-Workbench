@@ -1,0 +1,19 @@
+[
+  { "id": "chatgpt", "name": "ChatGPT", "url": "https://chatgpt.com/", "category": "assistant" },
+  { "id": "gemini", "name": "Gemini", "url": "https://gemini.google.com/", "category": "assistant" },
+  { "id": "deepseek", "name": "DeepSeek", "url": "https://chat.deepseek.com/", "category": "assistant" },
+  { "id": "zhipu", "name": "智谱清言", "url": "https://chatglm.cn/main/alltoolsdetail", "category": "assistant" },
+  { "id": "kimi", "name": "Kimi", "url": "https://www.kimi.com/", "category": "assistant" },
+  { "id": "qwen", "name": "通义千问", "url": "https://www.qianwen.com/", "category": "assistant" },
+  { "id": "doubao", "name": "豆包", "url": "https://www.doubao.com/chat/", "category": "assistant" },
+  { "id": "minimax", "name": "MiniMax", "url": "https://agent.minimax.cn/", "category": "assistant" },
+  { "id": "claude", "name": "Claude", "url": "https://claude.ai/", "category": "assistant" },
+  { "id": "google", "name": "Google", "url": "https://google.com/", "category": "search" },
+  { "id": "wenxin", "name": "文心一言", "url": "https://wenxin.baidu.com/", "category": "assistant" },
+  { "id": "yuanbao", "name": "腾讯元宝", "url": "https://yuanbao.tencent.com/", "category": "assistant" },
+  { "id": "xinghuo", "name": "讯飞星火", "url": "https://xinghuo.xfyun.cn/desk", "category": "assistant" },
+  { "id": "nami", "name": "纳米AI", "url": "https://bot.n.cn/", "category": "assistant" },
+  { "id": "tiangong", "name": "天工AI", "url": "https://www.tiangong.cn/", "category": "assistant" },
+  { "id": "xiaoyi", "name": "小艺", "url": "https://xiaoyi.huawei.com/chat/", "category": "assistant" },
+  { "id": "grok", "name": "Grok", "url": "https://grok.com/", "category": "assistant" }
+]
