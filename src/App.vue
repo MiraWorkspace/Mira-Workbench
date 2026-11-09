@@ -4,10 +4,12 @@
     <header class="topbar">
       <nav class="tabs" aria-label="工作区标签页">
         <button class="tab tab--home" :class="{ 'is-active': activeTab === 'home' }" type="button" @click="activeTab = 'home'"><img class="workbench-tab-logo" :src="logoUrl" alt="" /><span>工作台</span></button>
+        <div ref="scrollingTabs" class="tabs-scroll">
         <button v-for="tab in browserTabs" :key="tab.id" class="tab tab--site" :class="{ 'is-active': activeTab === tab.id }" type="button" :title="tabLabel(tab)" @click="activateTab(tab.id)">
           <LoaderCircle v-if="tab.loading" class="tab-loading-indicator" :size="17" /><BrandMark v-else :brand="tab.brand" :name="tab.name" :url="tab.url" :favicon="tab.faviconUrl" :custom-icon="tab.iconUrl" :cached-icon="tab.cachedIcon" /><span>{{ tabLabel(tab) }}</span><span class="tab-close" role="button" tabindex="0" :aria-label="`关闭 ${tabLabel(tab)}`" @click.stop="closeTab(tab.id)" @keydown.enter.stop="closeTab(tab.id)"><X :size="13" /></span>
         </button>
         <button v-for="tab in miniappTabs" :key="tab.id" class="tab tab--site" :class="{ 'is-active': activeTab === tab.id }" type="button" @click="activateTab(tab.id)"><span>{{ tab.name }}</span><span class="tab-close" role="button" tabindex="0" :aria-label="`关闭 ${tab.name}`" @click.stop="closeMiniapp(tab.id)" @keydown.enter.stop="closeMiniapp(tab.id)"><X :size="13" /></span></button>
+        </div>
       </nav>
       <div class="topbar-actions"><button class="icon-button" type="button" aria-label="新增" data-tooltip="新增" @click="openAdd"><Plus :size="17" /></button><button class="icon-button" type="button" aria-label="设置" data-tooltip="设置" @click="manageOpen = true"><SlidersHorizontal :size="17" /></button></div>
     </header>
@@ -19,7 +21,6 @@
         <button v-for="site in filteredSites" :key="site.id" class="site-card" type="button" @click="openSite(site)">
           <span class="site-icon"><BrandMark :brand="site.brand" :name="site.name" :url="site.url" :custom-icon="site.iconUrl" :cached-icon="site.cachedIcon" /></span>
           <span class="site-card__name">{{ site.name }}</span>
-          <span v-if="!site.builtin" class="custom-mark">自定义</span>
         </button>
       </div>
       <div v-if="filteredMiniapps.length" class="site-grid"><button v-for="item in filteredMiniapps" :key="item.id" class="site-card" type="button" :disabled="!item.enabled || openingMiniapp" @click="openMiniapp(item)"><span class="site-icon"><img v-if="item.icon" :src="item.icon" alt="" width="40" height="40" @error="item.icon = undefined" /><span v-else>{{ item.name.slice(0, 1) }}</span></span><span class="site-card__name">{{ item.name }}</span></button></div>
@@ -45,7 +46,7 @@
         <div class="dialog-heading"><h2 id="site-dialog-title">{{ editingId ? '编辑网站' : '新增' }}</h2><button class="icon-button" type="button" aria-label="关闭" @click="closeSiteDialog"><X :size="17" /></button></div>
         <div v-if="!editingId" class="add-tabs" role="tablist" aria-label="新增类型">
           <button id="add-website-tab" type="button" role="tab" :aria-selected="addType === 'website'" aria-controls="add-website-panel" :tabindex="addType === 'website' ? 0 : -1" @click="addType = 'website'" @keydown.right.prevent="selectAddType('miniapp')" @keydown.left.prevent="selectAddType('miniapp')"><Globe :size="17" />网站</button>
-          <button id="add-miniapp-tab" type="button" role="tab" :aria-selected="addType === 'miniapp'" aria-controls="add-miniapp-panel" :tabindex="addType === 'miniapp' ? 0 : -1" @click="addType = 'miniapp'" @keydown.right.prevent="selectAddType('website')" @keydown.left.prevent="selectAddType('website')"><Package :size="17" />本地小程序</button>
+          <button id="add-miniapp-tab" type="button" role="tab" :aria-selected="addType === 'miniapp'" aria-controls="add-miniapp-panel" :tabindex="addType === 'miniapp' ? 0 : -1" @click="addType = 'miniapp'" @keydown.right.prevent="selectAddType('website')" @keydown.left.prevent="selectAddType('website')"><Package :size="17" />小程序</button>
         </div>
         <form v-show="addType === 'website'" id="add-website-panel" :role="editingId ? undefined : 'tabpanel'" :aria-labelledby="editingId ? undefined : 'add-website-tab'" @submit.prevent="saveSite">
           <div class="logo-upload">
@@ -60,7 +61,7 @@
         </form>
         <div v-if="addType === 'miniapp'" id="add-miniapp-panel" role="tabpanel" aria-labelledby="add-miniapp-tab">
           <p class="miniapp-info"><Package :size="20" /><span>安装授权后可以调用本地能力</span></p>
-          <input ref="miniappInput" class="logo-file-input" type="file" accept=".miniapp,.zip" aria-label="选择小程序安装包" @change="selectMiniapp" /><div class="miniapp-upload"><p>选择一个 .miniapp 或 .zip 安装包，安装前会展示它申请的权限。</p><button class="cancel-button" type="button" :disabled="!isPlatformApp || managingMiniapp" @click="installMiniapp"><Upload :size="15" />{{ managingMiniapp ? '正在安装…' : '选择文件…' }}</button><p v-if="!isPlatformApp" class="miniapp-unavailable">请在 Mira 桌面应用中安装本地小程序。</p></div>
+          <input ref="miniappInput" class="logo-file-input" type="file" accept=".miniapp,.zip" aria-label="选择小程序安装包" @change="selectMiniapp" /><div class="miniapp-upload"><p>选择一个 .miniapp 或 .zip 安装包，安装前会展示它申请的权限。</p><button class="cancel-button" type="button" :disabled="!isPlatformApp || managingMiniapp" @click="installMiniapp"><Upload :size="15" />{{ managingMiniapp ? '正在安装…' : '选择文件…' }}</button><p v-if="!isPlatformApp" class="miniapp-unavailable">请在 Mira 桌面应用中安装小程序。</p></div>
           <p v-if="miniappError" class="form-error" role="alert">{{ miniappError }}</p><p v-if="miniappNotice" class="miniapp-notice" role="status">{{ miniappNotice }}</p>
           <div class="dialog-actions"><span class="dialog-spacer"></span><button class="cancel-button" type="button" @click="closeSiteDialog">{{ miniappNotice ? '完成' : '取消' }}</button></div>
         </div>
@@ -135,6 +136,8 @@ let dirty = false
 let themeUnsubscribe: (() => void) | undefined
 const browserTabs = ref<BrowserTab[]>([])
 const activeTab = ref('home')
+const scrollingTabs = ref<HTMLElement>()
+let tabsResize: ResizeObserver | undefined
 const query = ref('')
 const siteDialog = ref(false)
 const siteDialogElement = ref<HTMLElement>()
@@ -168,6 +171,7 @@ const editingBrand = computed(() => editingSite.value?.url === formAddress.value
 const attemptedIcons = new Set<string>()
 watch(sites, () => { if (initialized || !isPlatformApp) saveSites() }, { deep: true, flush: 'sync' })
 watch(sites, () => { if (initialized || !isPlatformApp) cacheSiteIcons() }, { deep: true })
+watch([activeTab, () => browserTabs.value.map(tabLabel), () => miniappTabs.value.map(tab => tab.name)], revealActiveTab, { flush: 'post' })
 watch([siteDialog, addType, () => form.value, () => form.value.url, () => form.value.iconUrl, uploadingLogo], (_values, _previous, onCleanup) => {
   fetchingLogo.value = false
   if (!siteDialog.value || addType.value !== 'website' || form.value.iconUrl || uploadingLogo.value) return
@@ -368,7 +372,15 @@ function openBrowserTab(value: string, site?: WebsiteEntry) {
   loadError.value = ''
   if (hostBrowserReady.value) hostBrowser?.open(tab.id, tab.currentUrl)
 }
-function activateTab(id: string) { activeTab.value = id; loadError.value = tabById(id)?.error || '' }
+function revealActiveTab() {
+  const container = scrollingTabs.value
+  const tab = container?.querySelector<HTMLElement>('.is-active')
+  if (!container || !tab) return
+  const viewport = container.getBoundingClientRect(), bounds = tab.getBoundingClientRect()
+  if (bounds.left < viewport.left) container.scrollLeft += bounds.left - viewport.left
+  else if (bounds.right > viewport.right) container.scrollLeft += bounds.right - viewport.right
+}
+function activateTab(id: string) { activeTab.value = id; loadError.value = tabById(id)?.error || ''; void nextTick(revealActiveTab) }
 function closeTab(id: string) {
   const index = browserTabs.value.findIndex(tab => tab.id === id)
   if (index < 0) return
@@ -648,6 +660,8 @@ function relayMiraShortcut(event: KeyboardEvent) {
   }, '*')
 }
 onMounted(() => {
+  tabsResize = new ResizeObserver(revealActiveTab)
+  if (scrollingTabs.value) tabsResize.observe(scrollingTabs.value)
   if (isPlatformApp) void initializeStorage()
   else cacheSiteIcons()
   if (!isElectron && window.parent !== window) {
@@ -667,6 +681,7 @@ onMounted(() => {
   if (!isPlatformApp) applyTheme(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
 })
 onUnmounted(() => {
+  tabsResize?.disconnect()
   finishReview(false); themeUnsubscribe?.(); void miniappManager?.dispose().finally(() => sdk?.dispose())
   hostBrowser?.dispose(); browserResize?.disconnect(); window.clearTimeout(browserConnectTimer)
   for (const id of titleRefreshTimers.keys()) clearTitleRefresh(id)
