@@ -180,5 +180,5 @@ Harness 当前已有应用选择器、微应用注册框架和第一方 iframe g
 
 - 用户提供的 Cherry Studio 小程序页面截图与当前安装版界面观察：合集搜索、添加网站表单、显示管理；本 PRD 仅借鉴交互模式。
 - [CherryHQ/cherry-studio-miniapps](https://github.com/CherryHQ/cherry-studio-miniapps)：其 README 将仓库定位为 MiniApp 文档和社区发现目录，MiniApp 由开发者维护和托管；列表收录不等于审核或背书。其文档将 manifest URL 作为安装入口。本项目首版只参考网站合集，不照搬其本地包安装能力。
-- [Mira Harness 第一方子应用 SDK 契约](../Mira-Harness/docs/MIRA_FIRST_PARTY_SDK_CONTRACT.md)：宿主已有第一方子应用桥接草案及其安全边界。
+- [Mira Harness 第一方子应用 SDK 契约](https://github.com/MiraWorkspace/Mira-Harness/blob/main/docs/MIRA_FIRST_PARTY_SDK_CONTRACT.md)：宿主已有第一方子应用桥接草案及其安全边界。
 - [Electron Security](https://www.electronjs.org/docs/latest/tutorial/security)：网站承载实现应遵循 Electron 安全建议。

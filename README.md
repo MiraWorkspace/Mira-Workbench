@@ -2,9 +2,13 @@
 
 Mira 的可选桌面子应用。首版聚合 17 个内置网站，提供搜索、分类、自定义网站、显示管理和内部网站标签。使用 Vue 3、TypeScript、Vite；品牌图标复用 Harness 使用的 `@lobehub/icons-static-svg`。
 
+项目仓库：[MiraWorkspace/Mira-Workbench](https://github.com/MiraWorkspace/Mira-Workbench)。问题反馈请提交至 [Issues](https://github.com/MiraWorkspace/Mira-Workbench/issues)。
+
 ## 本地运行
 
 ```sh
+git clone https://github.com/MiraWorkspace/Mira-Workbench.git
+cd Mira-Workbench
 npm ci
 npm run dev
 npm run build
@@ -59,7 +63,7 @@ npm run install:test
 - 如果应用显示 DEV 标识但图标缺失或“打开目录”失败，先检查目录名与清单 ID 是否一致，以及清单指定的入口和图标文件是否存在。修正后重新进入“设置 → 应用扩展”，必要时重启 Mira 重新扫描。
 - Windows PowerShell 使用独立测试用户目录时，可先运行 `$env:MIRA_TEST_HOME = 'C:\mira-workbench-test'`，再执行 `npm run install:test`，并使用同一环境变量启动 Mira。
 
-[Mira-Harness](https://github.com/tuyn53/Mira-Harness) 提供本地应用扫描、静态入口、应用扩展设置页与标题栏选择器，并支持线上目录读取与缓存。线上下载安装与升级替换尚未接入。
+[Mira-Harness](https://github.com/MiraWorkspace/Mira-Harness) 提供本地应用扫描、静态入口、应用扩展设置页与标题栏选择器，并支持线上目录读取与缓存。线上下载安装与升级替换尚未接入。
 
 2026-11-04 已在独立用户目录的 macOS Electron 中确认：设置和前台选择器识别测试包，切换后加载本地 Workbench 首页及 17 个网站卡片。此结果不代表远端网站登录或 Windows 安装版已通过。产品范围见 [PRD](PRD.md)。
 

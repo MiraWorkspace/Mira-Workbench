@@ -4,6 +4,14 @@
   "private": true,
   "type": "module",
   "description": "Mira's optional website collection and in-app browsing sub-application.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MiraWorkspace/Mira-Workbench.git"
+  },
+  "homepage": "https://github.com/MiraWorkspace/Mira-Workbench#readme",
+  "bugs": {
+    "url": "https://github.com/MiraWorkspace/Mira-Workbench/issues"
+  },
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "vue-tsc --noEmit && vite build",
