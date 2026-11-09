@@ -9,7 +9,7 @@
         </button>
         <button v-for="tab in miniappTabs" :key="tab.id" class="tab tab--site" :class="{ 'is-active': activeTab === tab.id }" type="button" @click="activateTab(tab.id)"><span>{{ tab.name }}</span><span class="tab-close" role="button" tabindex="0" :aria-label="`关闭 ${tab.name}`" @click.stop="closeMiniapp(tab.id)" @keydown.enter.stop="closeMiniapp(tab.id)"><X :size="13" /></span></button>
       </nav>
-      <div class="topbar-actions"><button v-if="isPlatformApp" class="icon-button" type="button" aria-label="安装小程序" data-tooltip="安装小程序" :disabled="managingMiniapp" @click="installMiniapp"><PackagePlus :size="17" /></button><button class="icon-button" type="button" aria-label="显示管理" data-tooltip="显示管理" @click="manageOpen = true"><SlidersHorizontal :size="17" /></button><button class="icon-button" type="button" aria-label="添加网站" data-tooltip="添加网站" @click="openAdd"><Plus :size="17" /></button></div>
+      <div class="topbar-actions"><button class="icon-button" type="button" aria-label="新增" data-tooltip="新增" @click="openAdd"><Plus :size="17" /></button><button class="icon-button" type="button" aria-label="设置" data-tooltip="设置" @click="manageOpen = true"><SlidersHorizontal :size="17" /></button></div>
     </header>
 
     <section v-show="activeTab === 'home'" class="home-view">
@@ -41,20 +41,62 @@
     <section v-if="miniappTabs.length" v-show="Boolean(currentMiniapp)" ref="miniappStage" class="browser-view" />
 
     <div v-if="siteDialog" class="dialog-backdrop" @click.self="closeSiteDialog" @keydown.esc.stop="closeSiteDialog">
-      <section class="site-dialog" role="dialog" aria-modal="true" :aria-labelledby="'site-dialog-title'"><div class="dialog-heading"><div><p class="eyebrow">YOUR COLLECTION</p><h2 id="site-dialog-title">{{ editingId ? '编辑网站' : '添加网站' }}</h2></div><button class="icon-button" type="button" aria-label="关闭" @click="closeSiteDialog"><X :size="17" /></button></div><form @submit.prevent="saveSite"><label>网站名称<input v-model.trim="form.name" autofocus maxlength="40" placeholder="例如：我的 AI 助手" required /></label><label>网站地址<input v-model.trim="form.url" type="url" placeholder="https://example.com" required /></label><label>备用图标地址（可选）<input v-model.trim="form.iconUrl" type="url" placeholder="https://example.com/icon.png" /></label><p v-if="formError" class="form-error" role="alert">{{ formError }}</p><div class="dialog-actions"><button v-if="editingId && !editingIsBuiltin" class="delete-button" type="button" @click="deleteSite">删除网站</button><span class="dialog-spacer"></span><button class="cancel-button" type="button" @click="closeSiteDialog">取消</button><button class="add-button" type="submit"><Check :size="15" />保存网站</button></div></form></section>
+      <section ref="siteDialogElement" class="site-dialog add-dialog" role="dialog" aria-modal="true" aria-labelledby="site-dialog-title" tabindex="-1" @keydown.tab="trapDialogFocus">
+        <div class="dialog-heading"><h2 id="site-dialog-title">{{ editingId ? '编辑网站' : '新增' }}</h2><button class="icon-button" type="button" aria-label="关闭" @click="closeSiteDialog"><X :size="17" /></button></div>
+        <div v-if="!editingId" class="add-tabs" role="tablist" aria-label="新增类型">
+          <button id="add-website-tab" type="button" role="tab" :aria-selected="addType === 'website'" aria-controls="add-website-panel" :tabindex="addType === 'website' ? 0 : -1" @click="addType = 'website'" @keydown.right.prevent="selectAddType('miniapp')" @keydown.left.prevent="selectAddType('miniapp')"><Globe :size="17" />网站</button>
+          <button id="add-miniapp-tab" type="button" role="tab" :aria-selected="addType === 'miniapp'" aria-controls="add-miniapp-panel" :tabindex="addType === 'miniapp' ? 0 : -1" @click="addType = 'miniapp'" @keydown.right.prevent="selectAddType('website')" @keydown.left.prevent="selectAddType('website')"><Package :size="17" />本地小程序</button>
+        </div>
+        <form v-show="addType === 'website'" id="add-website-panel" :role="editingId ? undefined : 'tabpanel'" :aria-labelledby="editingId ? undefined : 'add-website-tab'" @submit.prevent="saveSite">
+          <div class="logo-upload">
+            <span class="site-icon logo-preview"><LayoutGrid v-if="!form.name && !form.url && !form.iconUrl" :size="36" class="logo-placeholder" /><BrandMark v-else :brand="editingBrand" :name="form.name" :url="form.url" :custom-icon="form.iconUrl" /></span>
+            <input ref="logoInput" class="logo-file-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,image/x-icon,image/vnd.microsoft.icon" aria-label="选择 Logo 文件" @change="uploadLogo" />
+            <div class="logo-upload-actions"><button class="cancel-button" type="button" :disabled="uploadingLogo" @click="logoInput?.click()"><Upload :size="15" />{{ uploadingLogo ? '正在处理…' : '上传 Logo 文件' }}</button><button v-if="form.iconUrl" class="text-button" type="button" :disabled="uploadingLogo" @click="form.iconUrl = ''">恢复默认图标</button></div>
+            <p class="logo-hint">支持常见图片格式，最大 5 MB</p>
+          </div>
+          <label><span>网站名称 <span class="required-mark">*</span></span><input v-model.trim="form.name" maxlength="40" placeholder="请输入名称" required /></label>
+          <label><span>网站地址 <span class="required-mark">*</span></span><input v-model.trim="form.url" type="url" placeholder="https://example.com" required /></label>
+          <p v-if="formError" class="form-error" role="alert">{{ formError }}</p>
+          <div class="dialog-actions"><button v-if="editingId && !editingIsBuiltin" class="delete-button" type="button" @click="deleteSite">删除网站</button><span class="dialog-spacer"></span><button class="cancel-button" type="button" @click="closeSiteDialog">取消</button><button class="add-button" type="submit" :disabled="uploadingLogo || !form.name || !form.url"><Check :size="15" />保存</button></div>
+        </form>
+        <div v-if="addType === 'miniapp'" id="add-miniapp-panel" role="tabpanel" aria-labelledby="add-miniapp-tab">
+          <p class="miniapp-info"><Package :size="20" /><span>安装授权后可以调用本地能力</span></p>
+          <input ref="miniappInput" class="logo-file-input" type="file" accept=".miniapp,.zip" aria-label="选择小程序安装包" @change="selectMiniapp" /><div class="miniapp-upload"><p>选择一个 .miniapp 或 .zip 安装包，安装前会展示它申请的权限。</p><button class="cancel-button" type="button" :disabled="!isPlatformApp || managingMiniapp" @click="installMiniapp"><Upload :size="15" />{{ managingMiniapp ? '正在安装…' : '选择文件…' }}</button><p v-if="!isPlatformApp" class="miniapp-unavailable">请在 Mira 桌面应用中安装本地小程序。</p></div>
+          <p v-if="miniappError" class="form-error" role="alert">{{ miniappError }}</p><p v-if="miniappNotice" class="miniapp-notice" role="status">{{ miniappNotice }}</p>
+          <div class="dialog-actions"><span class="dialog-spacer"></span><button class="cancel-button" type="button" @click="closeSiteDialog">{{ miniappNotice ? '完成' : '取消' }}</button></div>
+        </div>
+      </section>
     </div>
 
-    <div v-if="manageOpen" class="dialog-backdrop" @click.self="manageOpen = false" @keydown.esc.stop="manageOpen = false"><section class="manage-dialog" role="dialog" aria-modal="true" aria-labelledby="manage-title"><div class="dialog-heading"><div><p class="eyebrow">COLLECTION SETTINGS</p><h2 id="manage-title">显示管理</h2></div><button class="icon-button" type="button" aria-label="关闭" @click="manageOpen = false"><X :size="17" /></button></div><p class="manage-copy">选择要显示的网站和小程序。</p><div class="manage-list"><div v-for="site in sites" :key="site.id" class="manage-item"><BrandMark :brand="site.brand" :name="site.name" :url="site.url" /><span>{{ site.name }}</span><button class="text-button manage-edit" type="button" :aria-label="`编辑 ${site.name}`" @click="manageOpen = false; editSite(site)">编辑</button><input v-model="site.visible" type="checkbox" :aria-label="`显示 ${site.name}`" /></div><div v-for="item in miniapps" :key="item.id" class="manage-item"><span>{{ item.name.slice(0, 1) }}</span><span>{{ item.name }}</span><button v-if="item.approved" class="text-button" type="button" :disabled="managingMiniapp" @click="manageMiniapp(item, 'revoke')">撤销权限</button><button class="text-button" type="button" :disabled="managingMiniapp" @click="manageMiniapp(item, 'uninstall')">卸载</button><input type="checkbox" :aria-label="`显示 ${item.name}`" :checked="miniappVisible(item.id)" @change="setMiniappVisible(item.id, ($event.target as HTMLInputElement).checked)" /></div></div><p v-if="miniappError" role="alert">{{ miniappError }}</p><div class="dialog-actions"><button class="text-button" type="button" @click="restoreDefaults">恢复默认列表</button><span class="dialog-spacer"></span><button class="add-button" type="button" @click="saveSites(); manageOpen = false"><Check :size="15" />完成</button></div></section></div>
+    <div v-if="manageOpen" class="dialog-backdrop" @click.self="manageOpen = false" @keydown.esc.stop="manageOpen = false"><section class="manage-dialog" role="dialog" aria-modal="true" aria-labelledby="manage-title"><div class="dialog-heading"><div><p class="eyebrow">COLLECTION SETTINGS</p><h2 id="manage-title">显示管理</h2></div><button class="icon-button" type="button" aria-label="关闭" @click="manageOpen = false"><X :size="17" /></button></div><p class="manage-copy">选择要显示的网站和小程序。</p><div class="manage-list"><div v-for="site in sites" :key="site.id" class="manage-item"><BrandMark :brand="site.brand" :name="site.name" :url="site.url" :custom-icon="site.iconUrl" /><span>{{ site.name }}</span><button class="text-button manage-edit" type="button" :aria-label="`编辑 ${site.name}`" @click="manageOpen = false; editSite(site)">编辑</button><input v-model="site.visible" type="checkbox" :aria-label="`显示 ${site.name}`" /></div><div v-for="item in miniapps" :key="item.id" class="manage-item"><span>{{ item.name.slice(0, 1) }}</span><span>{{ item.name }}</span><button class="text-button manage-edit" type="button" @click="openPermissions(item)">权限</button><button v-if="item.reviewed" class="text-button" type="button" :disabled="managingMiniapp" @click="manageMiniapp(item, 'revoke')">撤销权限</button><button class="text-button" type="button" :disabled="managingMiniapp" @click="manageMiniapp(item, 'uninstall')">卸载</button><input type="checkbox" :aria-label="`显示 ${item.name}`" :checked="miniappVisible(item.id)" @change="setMiniappVisible(item.id, ($event.target as HTMLInputElement).checked)" /></div></div><p v-if="miniappError" role="alert">{{ miniappError }}</p><div class="dialog-actions"><button class="text-button" type="button" @click="restoreDefaults">恢复默认列表</button><span class="dialog-spacer"></span><button class="add-button" type="button" @click="saveSites(); manageOpen = false"><Check :size="15" />完成</button></div></section></div>
+
+    <div v-if="permissionItem" class="dialog-backdrop" @click.self="permissionsId = ''" @keydown.esc.stop="permissionsId = ''"><section class="site-dialog add-dialog" role="dialog" aria-modal="true" aria-labelledby="permissions-title">
+      <div class="dialog-heading"><h2 id="permissions-title">{{ permissionItem.name }} · 权限</h2><button class="icon-button" type="button" aria-label="关闭权限设置" @click="permissionsId = ''"><X :size="17" /></button></div>
+      <p class="manage-copy">版本 {{ permissionItem.manifest.version }}。修改权限会关闭正在运行的小程序。</p>
+      <div class="permission-list"><label v-for="cap in permissionItem.manifest.requiredCapabilities" :key="cap"><input v-model="permissionDraft" type="checkbox" :value="cap" :disabled="managingMiniapp" />{{ capabilityLabels[cap] }}</label><p v-if="!permissionItem.manifest.requiredCapabilities.length">此小程序未申请额外能力。</p></div>
+      <div class="dialog-actions"><button class="add-button" type="button" :disabled="managingMiniapp" @click="savePermissions">保存权限</button><button class="text-button" type="button" :disabled="managingMiniapp" @click="manageMiniapp(permissionItem, 'revoke')">撤销全部权限</button></div>
+      <h3 class="directory-heading">授权目录</h3><p class="manage-copy">仅可访问在此授权的目录，可分别授予只读或读写权限。</p>
+      <div v-for="grant in permissionItem.directories" :key="grant.id" class="directory-item"><span>{{ grant.name }} · {{ grant.access === 'read' ? '只读' : '读写' }}</span><button class="text-button" type="button" :disabled="managingMiniapp" @click="miniappAction(() => miniappManager!.removeDirectory(permissionsId, grant.id))">撤销目录授权</button></div>
+      <div class="dialog-actions"><button class="cancel-button" type="button" :disabled="managingMiniapp || !permissionItem.approved.includes('files:read')" @click="miniappAction(() => miniappManager!.addDirectory(permissionsId, 'read'))">添加只读目录</button><button class="cancel-button" type="button" :disabled="managingMiniapp || !permissionItem.approved.includes('files:read') || !permissionItem.approved.includes('files:write')" @click="miniappAction(() => miniappManager!.addDirectory(permissionsId, 'readwrite'))">添加读写目录</button></div>
+      <p v-if="miniappError" class="form-error" role="alert">{{ miniappError }}</p><div class="dialog-actions"><span class="dialog-spacer"></span><button class="cancel-button" type="button" @click="permissionsId = ''">完成</button></div>
+    </section></div>
+    <div v-if="permissionReview" class="dialog-backdrop" @keydown.esc.stop="finishReview(false)"><section class="site-dialog add-dialog review-dialog" role="alertdialog" aria-modal="true" aria-labelledby="review-title" tabindex="-1" @keydown.tab="trapReviewFocus">
+      <h2 id="review-title">{{ permissionReview.title }}</h2><p>{{ permissionReview.message }}</p>
+      <template v-if="permissionReview.permissions"><p class="manage-copy">此小程序申请以下能力：</p><ul class="permission-summary"><li v-for="permission in permissionReview.permissions" :key="permission">{{ permission }}</li><li v-if="!permissionReview.permissions.length">未申请额外能力</li></ul></template>
+      <div class="dialog-actions"><span class="dialog-spacer"></span><button class="cancel-button" type="button" @click="finishReview(false)">取消</button><button class="add-button" type="button" @click="finishReview(true)">{{ permissionReview.confirm }}</button></div>
+    </section></div>
   </main>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import { ArrowLeft, ArrowRight, Check, ExternalLink, LoaderCircle, LockKeyhole, PackagePlus, Plus, RotateCw, Search, SlidersHorizontal, TriangleAlert, X } from 'lucide-vue-next'
+import { ArrowLeft, ArrowRight, Check, ExternalLink, Globe, LayoutGrid, LoaderCircle, LockKeyhole, Package, Plus, RotateCw, Search, SlidersHorizontal, TriangleAlert, Upload, X } from 'lucide-vue-next'
 import BrandMark from './components/BrandMark.vue'
 import { builtinSites, readSites, sitesStorageKey, type WebsiteEntry } from './data/sites'
 import { connectHostBrowser, connectPlatformBrowser, type HostBrowserState } from './hostBrowser'
 import { WorkbenchStore, type WorkbenchEntry } from './data/workbenchStore'
+import { MiniappManager, type InstalledMiniapp, type ReviewRequest } from './miniapps/manager'
+import { capabilityLabels, type MiniappCapability } from './miniapps/package'
 import { connectMiraApp, type MiraAppSdk } from '@mira/app-sdk'
 
 interface BrowserTab extends WebsiteEntry { currentUrl: string; loading: boolean; pageTitle: string; canGoBack: boolean; canGoForward: boolean; error?: string; faviconUrl?: string | null }
@@ -69,7 +111,13 @@ let hostBrowser: ReturnType<typeof connectHostBrowser> | undefined
 let browserResize: ResizeObserver | undefined
 let browserConnectTimer: number | undefined
 const sites = ref(isPlatformApp ? [] : readSites())
-type InstalledMiniapp = { id: string; name: string; icon?: string; enabled: boolean; approved: boolean }
+let miniappManager: MiniappManager | undefined
+const miniappInput = ref<HTMLInputElement>()
+const permissionReview = ref<ReviewRequest>()
+let resolveReview: ((approved: boolean) => void) | undefined
+const permissionsId = ref('')
+const permissionDraft = ref<MiniappCapability[]>([])
+const permissionItem = computed(() => miniapps.value.find(item => item.id === permissionsId.value))
 const miniapps = ref<InstalledMiniapp[]>([])
 const miniappTabs = ref<Array<{ id: string; name: string; viewId: number }>>([])
 const miniappStage = ref<HTMLElement>()
@@ -90,6 +138,11 @@ const browserTabs = ref<BrowserTab[]>([])
 const activeTab = ref('home')
 const query = ref('')
 const siteDialog = ref(false)
+const siteDialogElement = ref<HTMLElement>()
+const addType = ref<'website' | 'miniapp'>('website')
+const logoInput = ref<HTMLInputElement>()
+const uploadingLogo = ref(false)
+let dialogTrigger: HTMLElement | null = null
 const manageOpen = ref(false)
 const editingId = ref('')
 const form = ref({ name: '', url: '', iconUrl: '' })
@@ -105,12 +158,13 @@ const filteredMiniapps = computed(() => miniapps.value.filter(item => miniappVis
 const currentAddress = computed(() => currentSite.value?.currentUrl || '')
 const pageLoading = computed(() => currentSite.value?.loading ?? false)
 const editingIsBuiltin = computed(() => sites.value.find(site => site.id === editingId.value)?.builtin ?? false)
+const editingBrand = computed(() => sites.value.find(site => site.id === editingId.value)?.brand)
 watch(sites, () => { if (initialized || !isPlatformApp) saveSites() }, { deep: true, flush: 'sync' })
-watch([activeTab, siteDialog, manageOpen, loadError, hostBrowserReady, storageError, storageLoading], () => { void nextTick(() => { syncHostBrowserLayout(); syncMiniappLayout() }) })
+watch([activeTab, siteDialog, manageOpen, loadError, hostBrowserReady, storageError, storageLoading, permissionReview, permissionsId], () => { void nextTick(() => { syncHostBrowserLayout(); syncMiniappLayout() }) })
 watch(miniappStage, (element, previous) => { if (previous) browserResize?.unobserve(previous); if (element) browserResize?.observe(element); syncMiniappLayout() })
 watch(webContent, (element, previous) => { if (previous) browserResize?.unobserve(previous); if (element) browserResize?.observe(element); syncHostBrowserLayout() })
 function siteToEntry(site: WebsiteEntry): WorkbenchEntry { return { id: site.id, type: 'website', name: site.name, address: site.url, icon: site.iconUrl || site.brand, category: site.category, builtin: site.builtin, visible: site.visible } }
-function entryToSite(entry: WorkbenchEntry): WebsiteEntry { const iconUrl = entry.icon?.startsWith('https://') ? entry.icon : undefined; const builtin = entry.builtin ? builtinSites.find(site => site.id === entry.id && site.url === entry.address) : undefined; return { id: entry.id, name: entry.name, url: entry.address, category: entry.category === 'search' ? 'search' : 'assistant', brand: builtin?.id, iconUrl, builtin: entry.builtin, visible: entry.visible } }
+function entryToSite(entry: WorkbenchEntry): WebsiteEntry { const iconUrl = entry.icon && /^(https:\/\/|data:image\/)/.test(entry.icon) ? entry.icon : undefined; const builtin = entry.builtin ? builtinSites.find(site => site.id === entry.id && site.url === entry.address) : undefined; return { id: entry.id, name: entry.name, url: entry.address, category: entry.category === 'search' ? 'search' : 'assistant', brand: builtin?.id, iconUrl, builtin: entry.builtin, visible: entry.visible } }
 async function initializeStorage() {
   storageLoading.value = true; storageError.value = ''
   try {
@@ -132,7 +186,18 @@ async function initializeStorage() {
     otherEntries.value = entries.filter(item => item.type !== 'website')
     sites.value = entries.filter(item => item.type === 'website').map(entryToSite)
     initialized = true
-    await refreshMiniapps()
+    if (!miniappManager) {
+      miniappManager = new MiniappManager(sdk, request => new Promise(resolve => { permissionReview.value = request; resolveReview = resolve; void nextTick(() => document.querySelector<HTMLElement>('.review-dialog')?.focus()) }), items => {
+        miniapps.value = items
+        const added = items.filter(item => !otherEntries.value.some(entry => entry.type === 'miniapp' && entry.address === item.id))
+        if (added.length) { otherEntries.value.push(...added.map(item => ({ id: `miniapp:${item.id}`, type: 'miniapp' as const, name: item.name, address: item.id, builtin: false, visible: true }))); saveSites() }
+      }, viewId => {
+        const tab = miniappTabs.value.find(tab => tab.viewId === viewId)
+        if (tab) { miniappTabs.value = miniappTabs.value.filter(item => item !== tab); if (activeTab.value === tab.id) activeTab.value = 'home' }
+      })
+    }
+    try { await miniappManager.initialize() }
+    catch (error) { miniappError.value = `${error instanceof Error ? error.message : '读取小程序失败'}，请修复后重新加载 Workbench。` }
   } catch (error) { storageError.value = error instanceof Error ? error.message : '读取数据失败' }
   finally { storageLoading.value = false }
 }
@@ -155,30 +220,37 @@ async function flushSites() {
   finally { saving = false }
 }
 function retryStorage() { if (initialized) { storageError.value = ''; void flushSites() } else void initializeStorage() }
-async function installMiniapp() {
-  if (!sdk || managingMiniapp.value) return
+function finishReview(approved: boolean) { permissionReview.value = undefined; resolveReview?.(approved); resolveReview = undefined }
+function installMiniapp() { miniappInput.value?.click() }
+async function selectMiniapp(event: Event) {
+  const input = event.target as HTMLInputElement, file = input.files?.[0]; input.value = ''
+  if (!file || !miniappManager || managingMiniapp.value) return
   managingMiniapp.value = true; miniappError.value = ''; miniappNotice.value = ''
-  try { if (await sdk.workbench.install()) miniappNotice.value = '小程序已安装或更新，重启 Mira 后生效。' }
-  catch (error) { miniappError.value = error instanceof Error ? error.message : '安装失败' }
+  try {
+    if (file.size > 64 * 1024 * 1024) throw new Error('安装包不能超过 64 MB')
+    if (await miniappManager.install(new Uint8Array(await file.arrayBuffer()))) miniappNotice.value = '小程序已安装或更新，可以立即打开。'
+  } catch (error) { miniappError.value = error instanceof Error ? error.message : '安装失败' }
   finally { managingMiniapp.value = false }
 }
 async function manageMiniapp(item: InstalledMiniapp, action: 'uninstall' | 'revoke') {
-  if (!sdk || managingMiniapp.value) return
+  if (!miniappManager || managingMiniapp.value) return
   managingMiniapp.value = true; miniappError.value = ''; miniappNotice.value = ''
   try {
-    const changed = action === 'uninstall' ? await sdk.workbench.uninstall(item.id) : await sdk.workbench.revoke(item.id)
-    if (changed) { await refreshMiniapps(); if (action === 'uninstall') miniappNotice.value = '小程序已卸载，重启 Mira 后完成。' }
+    if (action === 'uninstall') { if (await miniappManager.uninstall(item.id)) { miniappNotice.value = '小程序已卸载，独立数据已保留。'; if (permissionsId.value === item.id) permissionsId.value = '' } }
+    else { await miniappManager.revoke(item.id); permissionDraft.value = [] }
   } catch (error) { miniappError.value = error instanceof Error ? error.message : '操作失败' }
   finally { managingMiniapp.value = false }
 }
-async function refreshMiniapps() {
-  if (!sdk) return
-  try {
-    miniapps.value = await sdk.workbench.apps()
-    const added = miniapps.value.filter(item => !otherEntries.value.some(entry => entry.type === 'miniapp' && entry.address === item.id))
-    if (added.length) { otherEntries.value.push(...added.map(item => ({ id: `miniapp:${item.id}`, type: 'miniapp' as const, name: item.name, address: item.id, builtin: false, visible: true }))); saveSites() }
-    miniappError.value = ''
-  } catch { miniappError.value = '小程序列表加载失败。' }
+function openPermissions(item: InstalledMiniapp) { permissionsId.value = item.id; permissionDraft.value = [...item.approved] }
+async function savePermissions() {
+  if (!miniappManager || !permissionItem.value) return
+  await miniappAction(() => miniappManager!.setPermissions(permissionsId.value, permissionDraft.value))
+}
+async function miniappAction(action: () => Promise<unknown>) {
+  if (managingMiniapp.value) return
+  managingMiniapp.value = true; miniappError.value = ''
+  try { await action() } catch (error) { miniappError.value = error instanceof Error ? error.message : '操作失败' }
+  finally { managingMiniapp.value = false }
 }
 function miniappVisible(id: string) { return otherEntries.value.find(entry => entry.type === 'miniapp' && entry.address === id)?.visible !== false }
 function setMiniappVisible(id: string, visible: boolean) {
@@ -186,15 +258,14 @@ function setMiniappVisible(id: string, visible: boolean) {
   if (entry) { entry.visible = visible; saveSites() }
 }
 async function openMiniapp(item: InstalledMiniapp) {
-  if (!sdk || openingMiniapp.value) return
+  if (!miniappManager || openingMiniapp.value) return
   const existing = miniappTabs.value.find(tab => tab.id === `miniapp:${item.id}`)
   if (existing) { activateTab(existing.id); return }
   openingMiniapp.value = true; miniappError.value = ''
   try {
-    if (!item.approved && !await sdk.workbench.review(item.id)) return
-    const viewId = await sdk.workbench.app({ type: 'open', appId: item.id })
+    const viewId = await miniappManager.open(item.id)
+    if (viewId === undefined) return
     if (typeof viewId !== 'number') throw new Error('小程序打开失败')
-    item.approved = true
     const tab = { id: `miniapp:${item.id}`, name: item.name, viewId }
     miniappTabs.value.push(tab); activeTab.value = tab.id
     await nextTick(); syncMiniappLayout()
@@ -204,13 +275,13 @@ async function openMiniapp(item: InstalledMiniapp) {
 function syncMiniappLayout() {
   if (!sdk) return
   const bounds = miniappStage.value?.getBoundingClientRect()
-  for (const tab of miniappTabs.value) void sdk.workbench.app({ type: 'layout', id: tab.viewId, visible: tab.id === activeTab.value && !siteDialog.value && !manageOpen.value && !storageError.value && !storageLoading.value && Boolean(bounds?.width && bounds.height), bounds: bounds ? { x: Math.max(0, bounds.x), y: Math.max(0, bounds.y), width: bounds.width, height: bounds.height } : { x: 0, y: 0, width: 0, height: 0 } }).catch(() => undefined)
+  for (const tab of miniappTabs.value) void sdk.views.control({ type: 'layout', id: tab.viewId, visible: tab.id === activeTab.value && !siteDialog.value && !manageOpen.value && !storageError.value && !storageLoading.value && !permissionReview.value && !permissionsId.value && Boolean(bounds?.width && bounds.height), bounds: bounds ? { x: Math.max(0, bounds.x), y: Math.max(0, bounds.y), width: bounds.width, height: bounds.height } : { x: 0, y: 0, width: 0, height: 0 } }).catch(() => undefined)
 }
 function closeMiniapp(id: string) {
   const index = miniappTabs.value.findIndex(tab => tab.id === id)
   if (index < 0) return
   const [tab] = miniappTabs.value.splice(index, 1)
-  void sdk?.workbench.app({ type: 'close', id: tab.viewId }).catch(() => undefined)
+  void miniappManager?.close(tab.viewId).catch(() => undefined)
   if (activeTab.value === id) activeTab.value = 'home'
 }
 function openSite(site: WebsiteEntry) {
@@ -245,25 +316,70 @@ function closeTab(id: string) {
 }
 function openAdd() {
   editingId.value = ''
+  addType.value = 'website'
   form.value = { name: '', url: '', iconUrl: '' }
   formError.value = ''
-  siteDialog.value = true
+  showSiteDialog()
 }
 function editSite(site: WebsiteEntry) {
   editingId.value = site.id
+  addType.value = 'website'
   form.value = { name: site.name, url: site.url, iconUrl: site.iconUrl || '' }
   formError.value = ''
-  siteDialog.value = true
+  showSiteDialog()
 }
-function closeSiteDialog() { siteDialog.value = false }
+function showSiteDialog() {
+  dialogTrigger = document.activeElement instanceof HTMLElement ? document.activeElement : null
+  siteDialog.value = true
+  void nextTick(() => siteDialogElement.value?.focus())
+}
+function closeSiteDialog() { siteDialog.value = false; dialogTrigger?.focus() }
+function selectAddType(type: 'website' | 'miniapp') { addType.value = type; void nextTick(() => document.getElementById(`add-${type}-tab`)?.focus()) }
+function trapReviewFocus(event: KeyboardEvent) {
+  const buttons = document.querySelectorAll<HTMLButtonElement>('.review-dialog button')
+  if (event.shiftKey && (document.activeElement === buttons[0] || document.activeElement?.classList.contains('review-dialog'))) { event.preventDefault(); buttons[buttons.length - 1]?.focus() }
+  else if (!event.shiftKey && document.activeElement === buttons[buttons.length - 1]) { event.preventDefault(); buttons[0]?.focus() }
+}
+function trapDialogFocus(event: KeyboardEvent) {
+  const controls = [...(siteDialogElement.value?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), [tabindex="0"]') || [])].filter(element => element.offsetParent !== null && element.tabIndex >= 0)
+  const first = controls[0], last = controls.at(-1)
+  if (event.shiftKey && (document.activeElement === first || document.activeElement === siteDialogElement.value)) { event.preventDefault(); last?.focus() }
+  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
+}
+async function uploadLogo(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  formError.value = ''
+  if (!file.type.startsWith('image/')) { formError.value = '请选择图片文件。'; return }
+  if (file.size > 5 * 1024 * 1024) { formError.value = 'Logo 文件不能超过 5 MB，请选择较小的图片。'; return }
+  uploadingLogo.value = true
+  const draft = form.value
+  const objectUrl = URL.createObjectURL(file)
+  try {
+    const image = new Image()
+    image.src = objectUrl
+    await image.decode()
+    const scale = Math.min(1, 128 / Math.max(image.naturalWidth, image.naturalHeight))
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale))
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale))
+    const context = canvas.getContext('2d')!
+    context.drawImage(image, 0, 0, canvas.width, canvas.height)
+    draft.iconUrl = canvas.toDataURL('image/png')
+  } catch { if (form.value === draft) formError.value = '无法读取这张图片，请选择其他 Logo 文件。' }
+  finally { URL.revokeObjectURL(objectUrl); uploadingLogo.value = false }
+}
 function saveSite() {
+  if (uploadingLogo.value || !form.value.name) return
   let parsed: URL
   try { parsed = new URL(form.value.url) } catch { formError.value = '请输入有效的网址。'; return }
   if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) { formError.value = '网址必须使用 HTTP 或 HTTPS，且不能包含账号密码。'; return }
   let iconUrl: string | undefined
   if (form.value.iconUrl) {
-    try { const icon = new URL(form.value.iconUrl); if (icon.protocol !== 'https:' || icon.username || icon.password) throw new Error(); iconUrl = icon.href }
-    catch { formError.value = '备用图标必须使用不含账号密码的 HTTPS 地址。'; return }
+    try { const icon = new URL(form.value.iconUrl); if (!(icon.protocol === 'https:' || /^data:image\/png;base64,/.test(form.value.iconUrl)) || icon.username || icon.password) throw new Error(); iconUrl = icon.href }
+    catch { formError.value = 'Logo 无效，请重新上传图片。'; return }
   }
   const normalizedUrl = parsed.href
   const duplicate = sites.value.find(site => site.url === normalizedUrl && site.id !== editingId.value)
@@ -275,7 +391,7 @@ function saveSite() {
     sites.value.push({ id: `custom-${crypto.randomUUID()}`, name: form.value.name, url: normalizedUrl, iconUrl, category: 'assistant', builtin: false, visible: true })
   }
   saveSites()
-  siteDialog.value = false
+  closeSiteDialog()
 }
 function deleteSite() {
   const index = sites.value.findIndex(site => site.id === editingId.value && !site.builtin)
@@ -403,10 +519,10 @@ function handleFaviconUpdate(id: string, event: Event) {
   if (tab && favicon) tab.faviconUrl = favicon
 }
 function applyTheme(theme: unknown) {
-  if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme
+  if (theme === 'light' || theme === 'dark') { document.documentElement.dataset.theme = theme; miniappManager?.themeChanged(theme) }
 }
 function syncHostBrowserLayout() {
-  if (hostBrowserReady.value) hostBrowser?.layout(activeTab.value, webContent.value, Boolean(currentSite.value) && !siteDialog.value && !manageOpen.value && !loadError.value && !storageError.value && !storageLoading.value)
+  if (hostBrowserReady.value) hostBrowser?.layout(activeTab.value, webContent.value, Boolean(currentSite.value) && !siteDialog.value && !manageOpen.value && !loadError.value && !storageError.value && !storageLoading.value && !permissionReview.value && !permissionsId.value)
 }
 function handleHostBrowserState(state: HostBrowserState) {
   const tab = tabById(state.tabId)
@@ -421,11 +537,6 @@ function handleHostBrowserState(state: HostBrowserState) {
   if (activeTab.value === tab.id) loadError.value = state.error || ''
 }
 function handlePlatformMessage(event: MessageEvent) {
-  if (isPlatformApp && event.source === window && event.data?.type === 'mira:workbench-browser-event' && event.data.value?.type === 'miniapp-closed') {
-    const tab = miniappTabs.value.find(item => item.viewId === event.data.value.id)
-    if (tab) { miniappTabs.value = miniappTabs.value.filter(item => item !== tab); if (activeTab.value === tab.id) activeTab.value = 'home'; miniappError.value = `${tab.name}已关闭。` }
-    return
-  }
   if (event.source !== window.parent) return
   const message = event.data as { type?: string; theme?: unknown; url?: unknown } | undefined
   if (message?.type === 'mira:theme') applyTheme(message.theme)
@@ -466,7 +577,7 @@ onMounted(() => {
   if (!isPlatformApp) applyTheme(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
 })
 onUnmounted(() => {
-  themeUnsubscribe?.(); sdk?.dispose()
+  finishReview(false); themeUnsubscribe?.(); void miniappManager?.dispose().finally(() => sdk?.dispose())
   hostBrowser?.dispose(); browserResize?.disconnect(); window.clearTimeout(browserConnectTimer)
   for (const id of titleRefreshTimers.keys()) clearTitleRefresh(id)
   window.removeEventListener('message', handlePlatformMessage)

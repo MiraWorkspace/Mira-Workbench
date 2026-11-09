@@ -62,3 +62,9 @@ npm run install:test
 [Mira-Harness](https://github.com/tuyn53/Mira-Harness) 提供本地应用扫描、静态入口、应用扩展设置页与标题栏选择器，并支持线上目录读取与缓存。线上下载安装与升级替换尚未接入。
 
 2026-11-04 已在独立用户目录的 macOS Electron 中确认：设置和前台选择器识别测试包，切换后加载本地 Workbench 首页及 17 个网站卡片。此结果不代表远端网站登录或 Windows 安装版已通过。产品范围见 [PRD](PRD.md)。
+
+## 小程序职责边界
+
+Workbench 是自己的小程序宿主，管理安装、运行、能力与目录读写权限、更新和卸载。Mira 管理 Workbench 等第一方子应用，并通过通用 SDK 提供文件读写、SQLite namespace、隔离视图和消息通道。小程序不注册为 Mira 子应用，也不直接取得 Mira SDK 身份。详见 [Workbench 小程序 SDK](docs/MINIAPP_SDK.md)。
+
+当前 Workbench 使用 SDK 0.2.0、Mira API 1.2，需要匹配更新的 Mira 底层。安装更新可即时生效；旧包和旧数据库只读迁移，原数据保留，权限在 Workbench 重新审阅。

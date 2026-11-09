@@ -57,7 +57,8 @@ export function parseLegacySites(raw: string | null): WorkbenchEntry[] {
   return value.map(item => {
     if (!item || typeof item !== 'object' || typeof item.id !== 'string' || !item.id || ids.has(item.id) || typeof item.name !== 'string' || typeof item.url !== 'string' || !['assistant', 'search'].includes(item.category)) throw new Error('旧网站数据无效')
     ids.add(item.id)
-    return { id: item.id, type: 'website' as const, name: item.name, address: item.url, ...(typeof item.brand === 'string' ? { icon: item.brand } : {}), category: item.category, builtin: item.builtin === true, visible: item.visible !== false }
+    const icon = typeof item.iconUrl === 'string' && item.iconUrl ? item.iconUrl : item.brand
+    return { id: item.id, type: 'website' as const, name: item.name, address: item.url, ...(typeof icon === 'string' ? { icon } : {}), category: item.category, builtin: item.builtin === true, visible: item.visible !== false }
   })
 }
 

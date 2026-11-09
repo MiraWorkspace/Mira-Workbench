@@ -79,3 +79,21 @@ test('imports a modified built-in without replacing its address or visibility', 
   assert.deepEqual(entries.map(({ id, name, address, visible }) => ({ id, name, address, visible })), [{ id: 'builtin', name: 'Modified', address: 'https://different.example/', visible: false }])
   assert.equal((await store.initialize(raw, [builtin])).length, 1)
 })
+
+test('preserves uploaded logos through legacy import, save and reopening storage', async () => {
+  const storage = new Storage(), store = new WorkbenchStore(storage)
+  const icon = 'data:image/png;base64,iVBORw0KGgo='
+  const raw = JSON.stringify([{ id: 'custom-logo', name: 'Custom', url: 'https://example.com/logo', category: 'assistant', iconUrl: icon, brand: 'old-brand' }])
+  const entries = await store.initialize(raw, [])
+  assert.equal(entries[0].icon, icon)
+  entries[0].name = 'Edited'
+  await store.save(entries)
+  const reopened = await new WorkbenchStore(storage).initialize(null, [])
+  assert.equal(reopened[0].icon, icon)
+  assert.equal(reopened[0].name, 'Edited')
+})
+
+test('retains an existing custom icon URL when importing legacy sites', () => {
+  const raw = JSON.stringify([{ id: 'custom-icon', name: 'Custom', url: 'https://example.com/', category: 'assistant', iconUrl: 'https://example.com/icon.png' }])
+  assert.equal(parseLegacySites(raw)[0].icon, 'https://example.com/icon.png')
+})

@@ -16,24 +16,25 @@ Mira desktop users who regularly visit AI assistants and search websites while w
 
 ## Product Purpose
 
-Workbench is Mira's second, optional, standalone sub-application. It gathers built-in and user-added websites and opens them inside Mira so users can keep common web tools together.
+Workbench is Mira's optional first-party sub-application. It gathers built-in and user-added websites and hosts its own MiniApps.
 
 ## Positioning
 
-Workbench is selected alongside Harness from the Mira home application selector. It is a website collection and in-app browsing surface, not a Harness page or an executable MiniApp.
+Mira and Harness refer to the same main application. Workbench is an optional first-party application selected from Mira application selector. It is a website collection and in-app browsing surface, not a Harness page or an executable MiniApp.
 
 ## Operating Context
 
-Workbench runs as a desktop sub-application hosted by Mira. Its first release is a searchable collection of websites with internal tabs; the collection remains available while users work in opened sites.
+Workbench runs as a desktop sub-application hosted by Mira. It offers a searchable collection of websites and local MiniApps with internal tabs; the collection remains available while users work in opened entries.
 
-Mira owns the native title bar, application selector, and window-level actions. Everything below that title bar belongs to the selected application: switching from Harness replaces its sidebar and workspace with Workbench. Workbench fills the host-provided width and height without reserving title-bar space. Its 44px internal toolbar contains website tabs, display management, and the add-site action. The collection scrolls independently; the browser toolbar stays above the remaining website viewport.
+Mira owns the native title bar, application selector, and window-level actions. Everything below that title bar belongs to the selected application: switching from the main workspace replaces its sidebar and workspace with Workbench. Workbench fills the host-provided width and height without reserving title-bar space. Its 44px internal toolbar contains internal tabs and two actions: Add and Settings. Add combines website creation and local MiniApp installation; Settings includes display and MiniApp permission management. The collection scrolls independently; the browser toolbar stays above the remaining website viewport.
 
 ## Capabilities and Constraints
 
 - The first built-in collection contains 17 sites supplied by the user; names and URLs are recorded in `src/data/sites.ts`.
 - Users can search the collection, open multiple internal tabs, and manage custom site entries locally.
 - The host must isolate remote websites from Mira's privileged APIs. Website embedding and login compatibility vary by provider; blocked sites need a system-browser fallback.
-- Local MiniApp packages, remote directories, account sync, and mobile layouts are outside the first release.
+- Workbench owns MiniApp package installation, runtime, capability permissions, directory read/write grants, updates, and uninstallation. Mira supplies generic file, SQLite namespace, isolated-view, and message transport APIs.
+- Remote discovery catalogs, account sync, and mobile layouts remain out of scope.
 - Default sign-in persistence and website permission policy remain technical decisions for host integration.
 
 ## Brand Commitments

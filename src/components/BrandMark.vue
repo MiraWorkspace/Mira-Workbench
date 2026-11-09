@@ -17,14 +17,14 @@ const favicon = computed(() => {
 const failed = ref(false)
 const customFailed = ref(false)
 const brandFailed = ref(false)
-const iconUrl = computed(() => !brandFailed.value && brandIcon.value ? brandIcon.value : !failed.value ? props.favicon || favicon.value : !customFailed.value ? props.customIcon : undefined)
+const iconUrl = computed(() => !customFailed.value && props.customIcon ? props.customIcon : !brandFailed.value && brandIcon.value ? brandIcon.value : !failed.value ? props.favicon || favicon.value : undefined)
 const imageLoaded = computed(() => Boolean(iconUrl.value))
 const initial = computed(() => {
   const named = [...props.name.trim()][0]?.toUpperCase()
   if (named) return named
   try { return [...new URL(props.url).hostname.replace(/^www\./, '')][0]?.toUpperCase() || '?' } catch { return '?' }
 })
-function nextIcon() { if (!brandFailed.value && brandIcon.value) brandFailed.value = true; else if (!failed.value) failed.value = true; else customFailed.value = true }
+function nextIcon() { if (!customFailed.value && props.customIcon) customFailed.value = true; else if (!brandFailed.value && brandIcon.value) brandFailed.value = true; else failed.value = true }
 watch(() => [props.url, props.favicon, props.brand, props.customIcon], () => { failed.value = false; customFailed.value = false; brandFailed.value = false })
 </script>
 
