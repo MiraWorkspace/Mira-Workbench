@@ -17,20 +17,25 @@
     <section v-show="activeTab === 'home'" class="home-view">
       <div class="home-content">
       <div class="search-row"><label class="search-box"><Search :size="18" /><input v-model="query" aria-label="搜索网站" placeholder="搜索" /><button v-if="query" type="button" aria-label="清除搜索" @click="query = ''"><X :size="15" /></button></label></div>
-      <div v-if="filteredSites.length" class="site-grid">
-        <button v-for="site in filteredSites" :key="site.id" class="site-card" type="button" @click="openSite(site)">
-          <span class="site-icon"><BrandMark :brand="site.brand" :name="site.name" :url="site.url" :custom-icon="site.iconUrl" :cached-icon="site.cachedIcon" /></span>
-          <span class="site-card__name">{{ site.name }}</span>
+      <div v-if="filteredEntries.length" class="site-grid">
+        <button v-for="entry in filteredEntries" :key="`${entry.type}:${entry.item.id}`" class="site-card" type="button" :aria-disabled="entry.type === 'miniapp' && (!entry.item.enabled || openingMiniapp)" @click="entry.type === 'website' ? openSite(entry.item) : entry.item.enabled && !openingMiniapp && openMiniapp(entry.item)" @contextmenu.prevent="openEntryMenu($event, entry)">
+          <span class="site-icon"><BrandMark v-if="entry.type === 'website'" :brand="entry.item.brand" :name="entry.item.name" :url="entry.item.url" :custom-icon="entry.item.iconUrl" :cached-icon="entry.item.cachedIcon" /><template v-else><img v-if="entry.item.icon" :src="entry.item.icon" alt="" width="40" height="40" @error="entry.item.icon = undefined" /><span v-else>{{ entry.name.slice(0, 1) }}</span></template></span>
+          <span class="site-card__name"><Pin v-if="entry.pinned" :size="12" aria-label="已置顶" /><span>{{ entry.name }}</span></span>
         </button>
       </div>
-      <div v-if="filteredMiniapps.length" class="site-grid"><button v-for="item in filteredMiniapps" :key="item.id" class="site-card" type="button" :disabled="!item.enabled || openingMiniapp" @click="openMiniapp(item)"><span class="site-icon"><img v-if="item.icon" :src="item.icon" alt="" width="40" height="40" @error="item.icon = undefined" /><span v-else>{{ item.name.slice(0, 1) }}</span></span><span class="site-card__name">{{ item.name }}</span></button></div>
+      <div v-if="entryMenu" class="entry-menu" role="menu" :style="{ left: `${entryMenu.x}px`, top: `${entryMenu.y}px` }" @keydown.esc.stop="closeEntryMenu" @contextmenu.prevent>
+        <button type="button" role="menuitem" @click="hideEntry">隐藏</button>
+        <button type="button" role="menuitem" @click="togglePin">{{ entryMenu.entry.pinned ? '取消置顶' : '置顶' }}</button>
+        <template v-if="!entryMenu.entry.builtin"><button type="button" role="menuitem" @click="editEntry">编辑</button><button class="entry-menu__delete" type="button" role="menuitem" @click="deleteEntry">删除</button></template>
+      </div>
       <p v-if="miniappError" role="alert">{{ miniappError }}</p><p v-if="miniappNotice" role="status">{{ miniappNotice }}</p>
-      <div v-if="!filteredSites.length && !filteredMiniapps.length" class="empty-state"><span><Search :size="22" /></span><strong>没有找到匹配的网站或小程序</strong><p>试试其他名称，或添加你自己的网址。</p><button type="button" @click="openAdd"><Plus :size="15" />添加网站</button></div>
+      <div v-if="!filteredEntries.length" class="empty-state"><span><Search :size="22" /></span><strong>没有找到匹配的网站或小程序</strong><p>试试其他名称，或添加你自己的网址。</p><button type="button" @click="openAdd"><Plus :size="15" />添加网站</button></div>
       </div>
     </section>
 
     <section v-if="browserTabs.length" v-show="Boolean(currentSite)" class="browser-view">
       <div class="browser-toolbar"><div class="browser-controls"><button type="button" aria-label="后退" title="后退" :disabled="!currentSite?.canGoBack" @click="goBack"><ArrowLeft :size="17" /></button><button type="button" aria-label="前进" title="前进" :disabled="!currentSite?.canGoForward" @click="goForward"><ArrowRight :size="17" /></button><button v-if="pageLoading" type="button" aria-label="停止加载" title="停止加载" @click="stopFrame"><X :size="18" /></button><button v-else type="button" aria-label="刷新页面" title="刷新页面" @click="reloadFrame"><RotateCw :size="15" /></button></div><form class="address-bar" @submit.prevent="navigateAddress"><LockKeyhole :size="13" /><input ref="addressInput" v-model="addressDraft" aria-label="网站地址" inputmode="url" autocomplete="off" autocapitalize="off" :spellcheck="false" required @focus="addressEditing = true" @blur="addressEditing = false" @input="addressInput?.setCustomValidity('')" @keydown.esc.prevent="addressDraft = currentAddress; addressInput?.setCustomValidity('')" /></form><button class="icon-button external-button" type="button" aria-label="在浏览器打开" data-tooltip="在浏览器打开" @click="openExternal"><ExternalLink :size="17" /></button></div>
+      <p v-if="externalError" class="external-error" role="alert">{{ externalError }}</p>
       <div ref="webContent" class="web-content">
         <template v-if="isElectron">
           <webview v-for="tab in browserTabs" :key="tab.id" :ref="webviewRef(tab.id)" v-show="activeTab === tab.id" class="site-webview" :src="tab.currentUrl" partition="persist:mira-workbench" webpreferences="contextIsolation=yes,nodeIntegration=no,sandbox=yes,webSecurity=yes" allowpopups @did-start-loading="handleLoadStart(tab.id)" @did-stop-loading="handleLoadFinished(tab.id)" @did-navigate="handleNavigate(tab.id, $event)" @did-navigate-in-page="handleNavigate(tab.id, $event)" @page-title-updated="handleTitleUpdate(tab.id, $event)" @page-favicon-updated="handleFaviconUpdate(tab.id, $event)" @did-fail-load="handleLoadError(tab.id, $event)" @will-navigate="handleWillNavigate(tab.id, $event)" />
@@ -68,7 +73,8 @@
       </section>
     </div>
 
-    <div v-if="manageOpen" class="dialog-backdrop dialog-backdrop--floating" @click.self="manageOpen = false" @keydown.esc.stop="manageOpen = false"><section class="manage-dialog" role="dialog" aria-modal="true" aria-labelledby="manage-title"><div class="dialog-heading"><div><p class="eyebrow">COLLECTION SETTINGS</p><h2 id="manage-title">显示管理</h2></div><button class="icon-button" type="button" aria-label="关闭" @click="manageOpen = false"><X :size="17" /></button></div><p class="manage-copy">选择要显示的网站和小程序。</p><div class="manage-list"><div v-for="site in sites" :key="site.id" class="manage-item"><BrandMark :brand="site.brand" :name="site.name" :url="site.url" :custom-icon="site.iconUrl" :cached-icon="site.cachedIcon" /><span>{{ site.name }}</span><button class="text-button manage-edit" type="button" :aria-label="`编辑 ${site.name}`" @click="manageOpen = false; editSite(site)">编辑</button><input v-model="site.visible" type="checkbox" :aria-label="`显示 ${site.name}`" /></div><div v-for="item in miniapps" :key="item.id" class="manage-item"><span>{{ item.name.slice(0, 1) }}</span><span>{{ item.name }}</span><button class="text-button manage-edit" type="button" @click="openPermissions(item)">权限</button><button v-if="item.reviewed" class="text-button" type="button" :disabled="managingMiniapp" @click="manageMiniapp(item, 'revoke')">撤销权限</button><button class="text-button" type="button" :disabled="managingMiniapp" @click="manageMiniapp(item, 'uninstall')">卸载</button><input type="checkbox" :aria-label="`显示 ${item.name}`" :checked="miniappVisible(item.id)" @change="setMiniappVisible(item.id, ($event.target as HTMLInputElement).checked)" /></div></div><p v-if="miniappError" role="alert">{{ miniappError }}</p><div class="dialog-actions"><button class="text-button" type="button" @click="restoreDefaults">恢复默认列表</button><span class="dialog-spacer"></span><button class="add-button" type="button" @click="saveSites(); manageOpen = false"><Check :size="15" />完成</button></div></section></div>
+    <div v-if="editingMiniapp" class="dialog-backdrop dialog-backdrop--floating" @click.self="editingMiniapp = ''" @keydown.esc.stop="editingMiniapp = ''"><section class="site-dialog" role="dialog" aria-modal="true" aria-labelledby="edit-miniapp-title"><div class="dialog-heading"><h2 id="edit-miniapp-title">编辑小程序</h2><button class="icon-button" type="button" aria-label="关闭" @click="editingMiniapp = ''"><X :size="17" /></button></div><form @submit.prevent="saveMiniappName"><label><span>显示名称</span><input v-model.trim="miniappName" maxlength="40" required /></label><div class="dialog-actions"><span class="dialog-spacer"></span><button class="cancel-button" type="button" @click="editingMiniapp = ''">取消</button><button class="add-button" type="submit" :disabled="!miniappName">保存</button></div></form></section></div>
+    <div v-if="manageOpen" class="dialog-backdrop dialog-backdrop--floating" @click.self="manageOpen = false" @keydown.esc.stop="manageOpen = false"><section class="manage-dialog" role="dialog" aria-modal="true" aria-labelledby="manage-title"><div class="dialog-heading"><div><p class="eyebrow">COLLECTION SETTINGS</p><h2 id="manage-title">显示管理</h2></div><button class="icon-button" type="button" aria-label="关闭" @click="manageOpen = false"><X :size="17" /></button></div><p class="manage-copy">选择要显示的网站和小程序。</p><div class="manage-list"><div v-for="site in sites" :key="site.id" class="manage-item"><BrandMark :brand="site.brand" :name="site.name" :url="site.url" :custom-icon="site.iconUrl" :cached-icon="site.cachedIcon" /><span>{{ site.name }}</span><button class="text-button manage-edit" type="button" :aria-label="`编辑 ${site.name}`" @click="manageOpen = false; editSite(site)">编辑</button><input v-model="site.visible" type="checkbox" :aria-label="`显示 ${site.name}`" /></div><div v-for="item in miniapps" :key="item.id" class="manage-item"><span>{{ item.name.slice(0, 1) }}</span><span>{{ miniappEntry(item.id)?.name || item.name }}</span><button class="text-button manage-edit" type="button" @click="openPermissions(item)">权限</button><button v-if="item.reviewed" class="text-button" type="button" :disabled="managingMiniapp" @click="manageMiniapp(item, 'revoke')">撤销权限</button><button class="text-button" type="button" :disabled="managingMiniapp" @click="manageMiniapp(item, 'uninstall')">卸载</button><input type="checkbox" :aria-label="`显示 ${item.name}`" :checked="miniappVisible(item.id)" @change="setMiniappVisible(item.id, ($event.target as HTMLInputElement).checked)" /></div></div><p v-if="miniappError" role="alert">{{ miniappError }}</p><div class="dialog-actions"><button class="text-button" type="button" @click="restoreDefaults">恢复默认列表</button><span class="dialog-spacer"></span><button class="add-button" type="button" @click="saveSites(); manageOpen = false"><Check :size="15" />完成</button></div></section></div>
 
     <div v-if="permissionItem" class="dialog-backdrop" @click.self="permissionsId = ''" @keydown.esc.stop="permissionsId = ''"><section class="site-dialog add-dialog" role="dialog" aria-modal="true" aria-labelledby="permissions-title">
       <div class="dialog-heading"><h2 id="permissions-title">{{ permissionItem.name }} · 权限</h2><button class="icon-button" type="button" aria-label="关闭权限设置" @click="permissionsId = ''"><X :size="17" /></button></div>
@@ -90,7 +96,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import { ArrowLeft, ArrowRight, Check, ExternalLink, Globe, LoaderCircle, LockKeyhole, Package, Plus, RotateCw, Search, SlidersHorizontal, TriangleAlert, Upload, X } from 'lucide-vue-next'
+import { ArrowLeft, ArrowRight, Check, ExternalLink, Globe, LoaderCircle, LockKeyhole, Package, Pin, Plus, RotateCw, Search, SlidersHorizontal, TriangleAlert, Upload, X } from 'lucide-vue-next'
 import BrandMark from './components/BrandMark.vue'
 import { builtinSites, readSites, sitesStorageKey, type WebsiteEntry } from './data/sites'
 import { connectHostBrowser, connectPlatformBrowser, type HostBrowserState } from './hostBrowser'
@@ -152,13 +158,23 @@ const editingId = ref('')
 const form = ref({ name: '', url: '', iconUrl: '' })
 const formError = ref('')
 const loadError = ref('')
+const externalError = ref('')
 const webviewEls = new Map<string, BrowserWebview>()
 const titleRefreshTimers = new Map<string, number[]>()
-const visibleSites = computed(() => sites.value.filter(site => site.visible))
-const filteredSites = computed(() => visibleSites.value.filter(site => `${site.name} ${site.url}`.toLocaleLowerCase().includes(query.value.trim().toLocaleLowerCase())))
+type GridEntry = { type: 'website'; item: WebsiteEntry; name: string; builtin: boolean; pinned: boolean } | { type: 'miniapp'; item: InstalledMiniapp; name: string; builtin: boolean; pinned: boolean }
+const entryMenu = ref<{ entry: GridEntry; x: number; y: number }>()
+const editingMiniapp = ref('')
+const miniappName = ref('')
+const filteredEntries = computed<GridEntry[]>(() => {
+  const entries: GridEntry[] = [
+    ...sites.value.filter(site => site.visible).map(item => ({ type: 'website' as const, item, name: item.name, builtin: item.builtin, pinned: !!item.pinned })),
+    ...miniapps.value.filter(item => miniappVisible(item.id)).map(item => { const saved = miniappEntry(item.id); return { type: 'miniapp' as const, item, name: saved?.name || item.name, builtin: saved?.builtin ?? false, pinned: !!saved?.pinned } }),
+  ]
+  const term = query.value.trim().toLocaleLowerCase()
+  return entries.filter(entry => `${entry.name} ${entry.type === 'website' ? entry.item.url : entry.item.id}`.toLocaleLowerCase().includes(term)).sort((a, b) => Number(b.pinned) - Number(a.pinned))
+})
 const currentSite = computed(() => browserTabs.value.find(tab => tab.id === activeTab.value))
 const currentMiniapp = computed(() => miniappTabs.value.find(tab => tab.id === activeTab.value))
-const filteredMiniapps = computed(() => miniapps.value.filter(item => miniappVisible(item.id) && `${item.name} ${item.id}`.toLocaleLowerCase().includes(query.value.trim().toLocaleLowerCase())))
 const currentAddress = computed(() => currentSite.value?.currentUrl || '')
 const addressInput = ref<HTMLInputElement>()
 const addressDraft = ref('')
@@ -201,8 +217,8 @@ watch([activeTab, currentAddress], ([tab, url], [previousTab]) => {
 watch([activeTab, siteDialog, manageOpen, loadError, hostBrowserReady, storageError, storageLoading, permissionReview, permissionsId], () => { void nextTick(() => { syncHostBrowserLayout(); syncMiniappLayout() }) })
 watch(miniappStage, (element, previous) => { if (previous) browserResize?.unobserve(previous); if (element) browserResize?.observe(element); syncMiniappLayout() })
 watch(webContent, (element, previous) => { if (previous) browserResize?.unobserve(previous); if (element) browserResize?.observe(element); syncHostBrowserLayout() })
-function siteToEntry(site: WebsiteEntry): WorkbenchEntry { return { id: site.id, type: 'website', name: site.name, address: site.url, icon: site.iconUrl || site.brand, cachedIcon: site.cachedIcon, category: site.category, builtin: site.builtin, visible: site.visible } }
-function entryToSite(entry: WorkbenchEntry): WebsiteEntry { const iconUrl = entry.icon && /^(https:\/\/|data:image\/)/.test(entry.icon) ? entry.icon : undefined; const builtin = entry.builtin ? builtinSites.find(site => site.id === entry.id && site.url === entry.address) : undefined; return { id: entry.id, name: entry.name, url: entry.address, category: entry.category === 'search' ? 'search' : 'assistant', brand: builtin?.id, iconUrl, cachedIcon: entry.cachedIcon, builtin: entry.builtin, visible: entry.visible } }
+function siteToEntry(site: WebsiteEntry): WorkbenchEntry { return { id: site.id, type: 'website', name: site.name, address: site.url, icon: site.iconUrl || site.brand, cachedIcon: site.cachedIcon, category: site.category, builtin: site.builtin, visible: site.visible, pinned: site.pinned } }
+function entryToSite(entry: WorkbenchEntry): WebsiteEntry { const iconUrl = entry.icon && /^(https:\/\/|data:image\/)/.test(entry.icon) ? entry.icon : undefined; const builtin = entry.builtin ? builtinSites.find(site => site.id === entry.id && site.url === entry.address) : undefined; return { id: entry.id, name: entry.name, url: entry.address, category: entry.category === 'search' ? 'search' : 'assistant', brand: builtin?.id, iconUrl, cachedIcon: entry.cachedIcon, builtin: entry.builtin, visible: entry.visible, pinned: entry.pinned } }
 function cacheSiteIcons() {
   for (const site of sites.value) {
     const url = site.url, key = `${site.id}:${url}`
@@ -323,10 +339,45 @@ async function miniappAction(action: () => Promise<unknown>) {
   try { await action() } catch (error) { miniappError.value = error instanceof Error ? error.message : '操作失败' }
   finally { managingMiniapp.value = false }
 }
-function miniappVisible(id: string) { return otherEntries.value.find(entry => entry.type === 'miniapp' && entry.address === id)?.visible !== false }
+function miniappEntry(id: string) { return otherEntries.value.find(entry => entry.type === 'miniapp' && entry.address === id) }
+function miniappVisible(id: string) { return miniappEntry(id)?.visible !== false }
 function setMiniappVisible(id: string, visible: boolean) {
   const entry = otherEntries.value.find(item => item.type === 'miniapp' && item.address === id)
   if (entry) { entry.visible = visible; saveSites() }
+}
+function openEntryMenu(event: MouseEvent, entry: GridEntry) {
+  entryMenu.value = { entry, x: Math.max(0, Math.min(event.clientX, window.innerWidth - 150)), y: Math.max(0, Math.min(event.clientY, window.innerHeight - (entry.builtin ? 80 : 152))) }
+  void nextTick(() => document.querySelector<HTMLButtonElement>('.entry-menu button')?.focus())
+}
+function closeEntryMenu() { entryMenu.value = undefined }
+function dismissEntryMenu(event: MouseEvent) { if (!(event.target as Element).closest('.entry-menu')) closeEntryMenu() }
+function hideEntry() {
+  const entry = entryMenu.value?.entry
+  if (entry?.type === 'website') entry.item.visible = false
+  else if (entry) setMiniappVisible(entry.item.id, false)
+  closeEntryMenu()
+}
+function togglePin() {
+  const entry = entryMenu.value?.entry
+  if (entry?.type === 'website') entry.item.pinned = !entry.pinned
+  else if (entry) { const saved = miniappEntry(entry.item.id); if (saved) { saved.pinned = !entry.pinned; saveSites() } }
+  closeEntryMenu()
+}
+function editEntry() {
+  const entry = entryMenu.value?.entry
+  closeEntryMenu()
+  if (entry?.type === 'website') editSite(entry.item)
+  else if (entry) { editingMiniapp.value = entry.item.id; miniappName.value = entry.name }
+}
+function saveMiniappName() {
+  const entry = miniappEntry(editingMiniapp.value)
+  if (entry && miniappName.value) { entry.name = miniappName.value; saveSites(); editingMiniapp.value = '' }
+}
+function deleteEntry() {
+  const entry = entryMenu.value?.entry
+  closeEntryMenu()
+  if (entry?.type === 'website') { editingId.value = entry.item.id; deleteSite() }
+  else if (entry) void manageMiniapp(entry.item, 'uninstall')
 }
 async function openMiniapp(item: InstalledMiniapp) {
   if (!miniappManager || openingMiniapp.value) return
@@ -500,9 +551,14 @@ function navigateAddress() {
   addressInput.value?.blur()
   if (hostBrowserReady.value) hostBrowser?.open(tab.id, url.href)
 }
-function openExternal() {
-  if (!currentSite.value) return
-  window.open(currentSite.value.currentUrl, '_blank', 'noopener,noreferrer')
+async function openExternal() {
+  const tab = currentSite.value
+  if (!tab) return
+  externalError.value = ''
+  if (isPlatformApp && sdk) {
+    try { await sdk.workbench.browser({ type: 'control', tabId: tab.id, action: 'external' } as unknown as Parameters<typeof sdk.workbench.browser>[0]) }
+    catch { externalError.value = '无法打开系统浏览器，请检查默认浏览器设置或更新 Mira。' }
+  } else window.open(tab.currentUrl, '_blank', 'noopener,noreferrer')
 }
 function registerWebview(id: string, element: Element | null) {
   if (element instanceof HTMLElement) webviewEls.set(id, element as BrowserWebview)
@@ -677,6 +733,8 @@ onMounted(() => {
     browserConnectTimer = window.setTimeout(() => { browserConnecting.value = false }, 1500)
   }
   window.addEventListener('message', handlePlatformMessage)
+  window.addEventListener('click', dismissEntryMenu)
+  window.addEventListener('scroll', closeEntryMenu, true)
   window.addEventListener('keydown', relayMiraShortcut)
   if (!isPlatformApp) applyTheme(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
 })
@@ -686,6 +744,8 @@ onUnmounted(() => {
   hostBrowser?.dispose(); browserResize?.disconnect(); window.clearTimeout(browserConnectTimer)
   for (const id of titleRefreshTimers.keys()) clearTitleRefresh(id)
   window.removeEventListener('message', handlePlatformMessage)
+  window.removeEventListener('click', dismissEntryMenu)
+  window.removeEventListener('scroll', closeEntryMenu, true)
   window.removeEventListener('keydown', relayMiraShortcut)
 })
 </script>

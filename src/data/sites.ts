@@ -12,6 +12,7 @@ export interface WebsiteEntry {
   cachedIcon?: string
   builtin: boolean
   visible: boolean
+  pinned?: boolean
 }
 
 export const builtinSites: WebsiteEntry[] = builtinCatalog.map(site => ({ ...site, category: site.category as SiteCategory, brand: site.id, builtin: true, visible: true }))

@@ -112,3 +112,17 @@ test('preserves automatic icon bytes separately from an uploaded logo when reope
   assert.equal(uploaded[0].icon, 'data:image/png;base64,BAUG')
   assert.equal(uploaded[0].cachedIcon, 'data:image/png;base64,AQID')
 })
+
+test('persists pinned state for websites and miniapps and reads old rows as unpinned', async () => {
+  const storage = new Storage(), store = new WorkbenchStore(storage)
+  const entries = await store.initialize(null, [builtin, { id: 'miniapp:demo', type: 'miniapp', name: 'Demo', address: 'demo', builtin: false, visible: true }])
+  assert.equal(entries[0].pinned, false)
+  entries[0].pinned = true
+  entries[1].pinned = true
+  await store.save(entries)
+  const reopened = await new WorkbenchStore(storage).initialize(null, [builtin])
+  assert.deepEqual(reopened.map(entry => entry.pinned), [true, true])
+  reopened[0].pinned = false
+  await store.save(reopened)
+  assert.equal((await store.initialize(null, [builtin]))[0].pinned, false)
+})
