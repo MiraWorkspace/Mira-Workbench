@@ -16,6 +16,7 @@ export interface WorkbenchEntry {
   name: string
   address: string
   icon?: string
+  cachedIcon?: string
   category?: string
   builtin: boolean
   visible: boolean
@@ -37,16 +38,16 @@ const migrations = [{ version: 1, tables: [
     { name: 'key', type: 'TEXT' as const, primaryKey: true },
     { name: 'value', type: 'TEXT' as const, notNull: true },
   ] },
-] }]
+] }, { version: 2, addColumns: [{ table: 'entries', column: { name: 'cached_icon', type: 'TEXT' as const } }] }]
 
 function row(entry: WorkbenchEntry, position: number): Record<string, WorkbenchValue> {
-  return { id: entry.id, type: entry.type, name: entry.name, address: entry.address, icon: entry.icon ?? null, category: entry.category ?? null, builtin: Number(entry.builtin), visible: Number(entry.visible), position }
+  return { id: entry.id, type: entry.type, name: entry.name, address: entry.address, icon: entry.icon ?? null, cached_icon: entry.cachedIcon ?? null, category: entry.category ?? null, builtin: Number(entry.builtin), visible: Number(entry.visible), position }
 }
 
 function fromRow(value: unknown): WorkbenchEntry {
   const item = value as Record<string, unknown>
   if (!item || typeof item.id !== 'string' || (item.type !== 'website' && item.type !== 'miniapp') || typeof item.name !== 'string' || typeof item.address !== 'string' || (item.builtin !== 0 && item.builtin !== 1) || (item.visible !== 0 && item.visible !== 1)) throw new Error('工作台数据无效')
-  return { id: item.id, type: item.type, name: item.name, address: item.address, ...(typeof item.icon === 'string' ? { icon: item.icon } : {}), ...(typeof item.category === 'string' ? { category: item.category } : {}), builtin: item.builtin === 1, visible: item.visible === 1 }
+  return { id: item.id, type: item.type, name: item.name, address: item.address, ...(typeof item.icon === 'string' ? { icon: item.icon } : {}), ...(typeof item.cached_icon === 'string' ? { cachedIcon: item.cached_icon } : {}), ...(typeof item.category === 'string' ? { category: item.category } : {}), builtin: item.builtin === 1, visible: item.visible === 1 }
 }
 
 export function parseLegacySites(raw: string | null): WorkbenchEntry[] {
@@ -58,7 +59,7 @@ export function parseLegacySites(raw: string | null): WorkbenchEntry[] {
     if (!item || typeof item !== 'object' || typeof item.id !== 'string' || !item.id || ids.has(item.id) || typeof item.name !== 'string' || typeof item.url !== 'string' || !['assistant', 'search'].includes(item.category)) throw new Error('旧网站数据无效')
     ids.add(item.id)
     const icon = typeof item.iconUrl === 'string' && item.iconUrl ? item.iconUrl : item.brand
-    return { id: item.id, type: 'website' as const, name: item.name, address: item.url, ...(typeof icon === 'string' ? { icon } : {}), category: item.category, builtin: item.builtin === true, visible: item.visible !== false }
+    return { id: item.id, type: 'website' as const, name: item.name, address: item.url, ...(typeof icon === 'string' ? { icon } : {}), ...(typeof item.cachedIcon === 'string' ? { cachedIcon: item.cachedIcon } : {}), category: item.category, builtin: item.builtin === true, visible: item.visible !== false }
   })
 }
 

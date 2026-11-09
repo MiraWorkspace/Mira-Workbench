@@ -5,7 +5,7 @@
       <nav class="tabs" aria-label="工作区标签页">
         <button class="tab tab--home" :class="{ 'is-active': activeTab === 'home' }" type="button" @click="activeTab = 'home'"><img class="workbench-tab-logo" :src="logoUrl" alt="" /><span>工作台</span></button>
         <button v-for="tab in browserTabs" :key="tab.id" class="tab tab--site" :class="{ 'is-active': activeTab === tab.id }" type="button" :title="tabLabel(tab)" @click="activateTab(tab.id)">
-          <LoaderCircle v-if="tab.loading" class="tab-loading-indicator" :size="17" /><BrandMark v-else :brand="tab.brand" :name="tab.name" :url="tab.url" :favicon="tab.faviconUrl" :custom-icon="tab.iconUrl" /><span>{{ tabLabel(tab) }}</span><span class="tab-close" role="button" tabindex="0" :aria-label="`关闭 ${tabLabel(tab)}`" @click.stop="closeTab(tab.id)" @keydown.enter.stop="closeTab(tab.id)"><X :size="13" /></span>
+          <LoaderCircle v-if="tab.loading" class="tab-loading-indicator" :size="17" /><BrandMark v-else :brand="tab.brand" :name="tab.name" :url="tab.url" :favicon="tab.faviconUrl" :custom-icon="tab.iconUrl" :cached-icon="tab.cachedIcon" /><span>{{ tabLabel(tab) }}</span><span class="tab-close" role="button" tabindex="0" :aria-label="`关闭 ${tabLabel(tab)}`" @click.stop="closeTab(tab.id)" @keydown.enter.stop="closeTab(tab.id)"><X :size="13" /></span>
         </button>
         <button v-for="tab in miniappTabs" :key="tab.id" class="tab tab--site" :class="{ 'is-active': activeTab === tab.id }" type="button" @click="activateTab(tab.id)"><span>{{ tab.name }}</span><span class="tab-close" role="button" tabindex="0" :aria-label="`关闭 ${tab.name}`" @click.stop="closeMiniapp(tab.id)" @keydown.enter.stop="closeMiniapp(tab.id)"><X :size="13" /></span></button>
       </nav>
@@ -17,7 +17,7 @@
       <div class="search-row"><label class="search-box"><Search :size="18" /><input v-model="query" aria-label="搜索网站" placeholder="搜索" /><button v-if="query" type="button" aria-label="清除搜索" @click="query = ''"><X :size="15" /></button></label></div>
       <div v-if="filteredSites.length" class="site-grid">
         <button v-for="site in filteredSites" :key="site.id" class="site-card" type="button" @click="openSite(site)">
-          <span class="site-icon"><BrandMark :brand="site.brand" :name="site.name" :url="site.url" :custom-icon="site.iconUrl" /></span>
+          <span class="site-icon"><BrandMark :brand="site.brand" :name="site.name" :url="site.url" :custom-icon="site.iconUrl" :cached-icon="site.cachedIcon" /></span>
           <span class="site-card__name">{{ site.name }}</span>
           <span v-if="!site.builtin" class="custom-mark">自定义</span>
         </button>
@@ -29,18 +29,18 @@
     </section>
 
     <section v-if="browserTabs.length" v-show="Boolean(currentSite)" class="browser-view">
-      <div class="browser-toolbar"><div class="browser-controls"><button type="button" aria-label="后退" title="后退" :disabled="!currentSite?.canGoBack" @click="goBack"><ArrowLeft :size="17" /></button><button type="button" aria-label="前进" title="前进" :disabled="!currentSite?.canGoForward" @click="goForward"><ArrowRight :size="17" /></button><button v-if="pageLoading" type="button" aria-label="停止加载" title="停止加载" @click="stopFrame"><X :size="18" /></button><button v-else type="button" aria-label="刷新页面" title="刷新页面" @click="reloadFrame"><RotateCw :size="15" /></button></div><div class="address-bar"><LockKeyhole :size="13" /><span>{{ currentAddress }}</span></div><button class="external-button" type="button" @click="openExternal"><ExternalLink :size="15" /><span>在浏览器打开</span></button><button class="icon-button" type="button" aria-label="关闭标签页" @click="currentSite && closeTab(currentSite.id)"><X :size="16" /></button></div>
+      <div class="browser-toolbar"><div class="browser-controls"><button type="button" aria-label="后退" title="后退" :disabled="!currentSite?.canGoBack" @click="goBack"><ArrowLeft :size="17" /></button><button type="button" aria-label="前进" title="前进" :disabled="!currentSite?.canGoForward" @click="goForward"><ArrowRight :size="17" /></button><button v-if="pageLoading" type="button" aria-label="停止加载" title="停止加载" @click="stopFrame"><X :size="18" /></button><button v-else type="button" aria-label="刷新页面" title="刷新页面" @click="reloadFrame"><RotateCw :size="15" /></button></div><form class="address-bar" @submit.prevent="navigateAddress"><LockKeyhole :size="13" /><input ref="addressInput" v-model="addressDraft" aria-label="网站地址" inputmode="url" autocomplete="off" autocapitalize="off" :spellcheck="false" required @focus="addressEditing = true" @blur="addressEditing = false" @input="addressInput?.setCustomValidity('')" @keydown.esc.prevent="addressDraft = currentAddress; addressInput?.setCustomValidity('')" /></form><button class="icon-button external-button" type="button" aria-label="在浏览器打开" data-tooltip="在浏览器打开" @click="openExternal"><ExternalLink :size="17" /></button></div>
       <div ref="webContent" class="web-content">
         <template v-if="isElectron">
           <webview v-for="tab in browserTabs" :key="tab.id" :ref="webviewRef(tab.id)" v-show="activeTab === tab.id" class="site-webview" :src="tab.currentUrl" partition="persist:mira-workbench" webpreferences="contextIsolation=yes,nodeIntegration=no,sandbox=yes,webSecurity=yes" allowpopups @did-start-loading="handleLoadStart(tab.id)" @did-stop-loading="handleLoadFinished(tab.id)" @did-navigate="handleNavigate(tab.id, $event)" @did-navigate-in-page="handleNavigate(tab.id, $event)" @page-title-updated="handleTitleUpdate(tab.id, $event)" @page-favicon-updated="handleFaviconUpdate(tab.id, $event)" @did-fail-load="handleLoadError(tab.id, $event)" @will-navigate="handleWillNavigate(tab.id, $event)" />
         </template>
-        <iframe v-else-if="currentSite && !hostBrowserReady && !browserConnecting" :key="currentSite.id" class="site-iframe" :src="currentSite.url" :title="`${currentSite.name} 网页`" referrerpolicy="no-referrer" sandbox="allow-forms allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-downloads allow-modals allow-pointer-lock allow-presentation" @load="frameLoaded" />
+        <iframe v-else-if="currentSite && !hostBrowserReady && !browserConnecting" :key="currentSite.id" class="site-iframe" :src="currentSite.currentUrl" :title="`${currentSite.name} 网页`" referrerpolicy="no-referrer" sandbox="allow-forms allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-downloads allow-modals allow-pointer-lock allow-presentation" @load="frameLoaded" />
         <div v-if="loadError && currentSite" class="embed-warning"><div class="warning-icon"><TriangleAlert :size="22" /></div><h2>{{ currentSite.name }}暂时无法在工作台显示</h2><p>{{ loadError }}</p><button class="add-button" type="button" @click="openExternal"><ExternalLink :size="15" />在系统浏览器打开</button><button class="text-button" type="button" @click="reloadFrame">重试嵌入</button></div>
       </div>
     </section>
     <section v-if="miniappTabs.length" v-show="Boolean(currentMiniapp)" ref="miniappStage" class="browser-view" />
 
-    <div v-if="siteDialog" class="dialog-backdrop" @click.self="closeSiteDialog" @keydown.esc.stop="closeSiteDialog">
+    <div v-if="siteDialog" class="dialog-backdrop dialog-backdrop--floating" @click.self="closeSiteDialog" @keydown.esc.stop="closeSiteDialog">
       <section ref="siteDialogElement" class="site-dialog add-dialog" role="dialog" aria-modal="true" aria-labelledby="site-dialog-title" tabindex="-1" @keydown.tab="trapDialogFocus">
         <div class="dialog-heading"><h2 id="site-dialog-title">{{ editingId ? '编辑网站' : '新增' }}</h2><button class="icon-button" type="button" aria-label="关闭" @click="closeSiteDialog"><X :size="17" /></button></div>
         <div v-if="!editingId" class="add-tabs" role="tablist" aria-label="新增类型">
@@ -49,15 +49,14 @@
         </div>
         <form v-show="addType === 'website'" id="add-website-panel" :role="editingId ? undefined : 'tabpanel'" :aria-labelledby="editingId ? undefined : 'add-website-tab'" @submit.prevent="saveSite">
           <div class="logo-upload">
-            <span class="site-icon logo-preview"><LayoutGrid v-if="!form.name && !form.url && !form.iconUrl" :size="36" class="logo-placeholder" /><BrandMark v-else :brand="editingBrand" :name="form.name" :url="form.url" :custom-icon="form.iconUrl" /></span>
+            <button class="site-icon logo-preview" type="button" aria-label="上传网站 Logo" :aria-busy="uploadingLogo || fetchingLogo" :disabled="uploadingLogo" @click="logoInput?.click()"><LoaderCircle v-if="uploadingLogo || fetchingLogo" class="tab-loading-indicator" :size="28" role="status" aria-label="正在加载 Logo" /><BrandMark v-else :brand="editingBrand" :name="form.name" :url="form.url" :custom-icon="form.iconUrl" :cached-icon="previewIcon?.url === formAddress ? previewIcon.icon : undefined" /></button>
             <input ref="logoInput" class="logo-file-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,image/x-icon,image/vnd.microsoft.icon" aria-label="选择 Logo 文件" @change="uploadLogo" />
             <div class="logo-upload-actions"><button class="cancel-button" type="button" :disabled="uploadingLogo" @click="logoInput?.click()"><Upload :size="15" />{{ uploadingLogo ? '正在处理…' : '上传 Logo 文件' }}</button><button v-if="form.iconUrl" class="text-button" type="button" :disabled="uploadingLogo" @click="form.iconUrl = ''">恢复默认图标</button></div>
-            <p class="logo-hint">支持常见图片格式，最大 5 MB</p>
           </div>
           <label><span>网站名称 <span class="required-mark">*</span></span><input v-model.trim="form.name" maxlength="40" placeholder="请输入名称" required /></label>
-          <label><span>网站地址 <span class="required-mark">*</span></span><input v-model.trim="form.url" type="url" placeholder="https://example.com" required /></label>
+          <label><span>网站地址 <span class="required-mark">*</span></span><input v-model.trim="form.url" type="url" placeholder="请输入网站地址" required /></label>
           <p v-if="formError" class="form-error" role="alert">{{ formError }}</p>
-          <div class="dialog-actions"><button v-if="editingId && !editingIsBuiltin" class="delete-button" type="button" @click="deleteSite">删除网站</button><span class="dialog-spacer"></span><button class="cancel-button" type="button" @click="closeSiteDialog">取消</button><button class="add-button" type="submit" :disabled="uploadingLogo || !form.name || !form.url"><Check :size="15" />保存</button></div>
+          <div class="dialog-actions"><button v-if="editingId && !editingIsBuiltin" class="delete-button" type="button" @click="deleteSite">删除网站</button><span class="dialog-spacer"></span><button class="cancel-button" type="button" @click="closeSiteDialog">取消</button><button class="add-button" type="submit" :disabled="uploadingLogo || fetchingLogo || !form.name || !form.url"><Check :size="15" />保存</button></div>
         </form>
         <div v-if="addType === 'miniapp'" id="add-miniapp-panel" role="tabpanel" aria-labelledby="add-miniapp-tab">
           <p class="miniapp-info"><Package :size="20" /><span>安装授权后可以调用本地能力</span></p>
@@ -68,7 +67,7 @@
       </section>
     </div>
 
-    <div v-if="manageOpen" class="dialog-backdrop" @click.self="manageOpen = false" @keydown.esc.stop="manageOpen = false"><section class="manage-dialog" role="dialog" aria-modal="true" aria-labelledby="manage-title"><div class="dialog-heading"><div><p class="eyebrow">COLLECTION SETTINGS</p><h2 id="manage-title">显示管理</h2></div><button class="icon-button" type="button" aria-label="关闭" @click="manageOpen = false"><X :size="17" /></button></div><p class="manage-copy">选择要显示的网站和小程序。</p><div class="manage-list"><div v-for="site in sites" :key="site.id" class="manage-item"><BrandMark :brand="site.brand" :name="site.name" :url="site.url" :custom-icon="site.iconUrl" /><span>{{ site.name }}</span><button class="text-button manage-edit" type="button" :aria-label="`编辑 ${site.name}`" @click="manageOpen = false; editSite(site)">编辑</button><input v-model="site.visible" type="checkbox" :aria-label="`显示 ${site.name}`" /></div><div v-for="item in miniapps" :key="item.id" class="manage-item"><span>{{ item.name.slice(0, 1) }}</span><span>{{ item.name }}</span><button class="text-button manage-edit" type="button" @click="openPermissions(item)">权限</button><button v-if="item.reviewed" class="text-button" type="button" :disabled="managingMiniapp" @click="manageMiniapp(item, 'revoke')">撤销权限</button><button class="text-button" type="button" :disabled="managingMiniapp" @click="manageMiniapp(item, 'uninstall')">卸载</button><input type="checkbox" :aria-label="`显示 ${item.name}`" :checked="miniappVisible(item.id)" @change="setMiniappVisible(item.id, ($event.target as HTMLInputElement).checked)" /></div></div><p v-if="miniappError" role="alert">{{ miniappError }}</p><div class="dialog-actions"><button class="text-button" type="button" @click="restoreDefaults">恢复默认列表</button><span class="dialog-spacer"></span><button class="add-button" type="button" @click="saveSites(); manageOpen = false"><Check :size="15" />完成</button></div></section></div>
+    <div v-if="manageOpen" class="dialog-backdrop dialog-backdrop--floating" @click.self="manageOpen = false" @keydown.esc.stop="manageOpen = false"><section class="manage-dialog" role="dialog" aria-modal="true" aria-labelledby="manage-title"><div class="dialog-heading"><div><p class="eyebrow">COLLECTION SETTINGS</p><h2 id="manage-title">显示管理</h2></div><button class="icon-button" type="button" aria-label="关闭" @click="manageOpen = false"><X :size="17" /></button></div><p class="manage-copy">选择要显示的网站和小程序。</p><div class="manage-list"><div v-for="site in sites" :key="site.id" class="manage-item"><BrandMark :brand="site.brand" :name="site.name" :url="site.url" :custom-icon="site.iconUrl" :cached-icon="site.cachedIcon" /><span>{{ site.name }}</span><button class="text-button manage-edit" type="button" :aria-label="`编辑 ${site.name}`" @click="manageOpen = false; editSite(site)">编辑</button><input v-model="site.visible" type="checkbox" :aria-label="`显示 ${site.name}`" /></div><div v-for="item in miniapps" :key="item.id" class="manage-item"><span>{{ item.name.slice(0, 1) }}</span><span>{{ item.name }}</span><button class="text-button manage-edit" type="button" @click="openPermissions(item)">权限</button><button v-if="item.reviewed" class="text-button" type="button" :disabled="managingMiniapp" @click="manageMiniapp(item, 'revoke')">撤销权限</button><button class="text-button" type="button" :disabled="managingMiniapp" @click="manageMiniapp(item, 'uninstall')">卸载</button><input type="checkbox" :aria-label="`显示 ${item.name}`" :checked="miniappVisible(item.id)" @change="setMiniappVisible(item.id, ($event.target as HTMLInputElement).checked)" /></div></div><p v-if="miniappError" role="alert">{{ miniappError }}</p><div class="dialog-actions"><button class="text-button" type="button" @click="restoreDefaults">恢复默认列表</button><span class="dialog-spacer"></span><button class="add-button" type="button" @click="saveSites(); manageOpen = false"><Check :size="15" />完成</button></div></section></div>
 
     <div v-if="permissionItem" class="dialog-backdrop" @click.self="permissionsId = ''" @keydown.esc.stop="permissionsId = ''"><section class="site-dialog add-dialog" role="dialog" aria-modal="true" aria-labelledby="permissions-title">
       <div class="dialog-heading"><h2 id="permissions-title">{{ permissionItem.name }} · 权限</h2><button class="icon-button" type="button" aria-label="关闭权限设置" @click="permissionsId = ''"><X :size="17" /></button></div>
@@ -90,7 +89,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import { ArrowLeft, ArrowRight, Check, ExternalLink, Globe, LayoutGrid, LoaderCircle, LockKeyhole, Package, Plus, RotateCw, Search, SlidersHorizontal, TriangleAlert, Upload, X } from 'lucide-vue-next'
+import { ArrowLeft, ArrowRight, Check, ExternalLink, Globe, LoaderCircle, LockKeyhole, Package, Plus, RotateCw, Search, SlidersHorizontal, TriangleAlert, Upload, X } from 'lucide-vue-next'
 import BrandMark from './components/BrandMark.vue'
 import { builtinSites, readSites, sitesStorageKey, type WebsiteEntry } from './data/sites'
 import { connectHostBrowser, connectPlatformBrowser, type HostBrowserState } from './hostBrowser'
@@ -142,6 +141,8 @@ const siteDialogElement = ref<HTMLElement>()
 const addType = ref<'website' | 'miniapp'>('website')
 const logoInput = ref<HTMLInputElement>()
 const uploadingLogo = ref(false)
+const fetchingLogo = ref(false)
+const previewIcon = ref<{ url: string; icon?: string }>()
 let dialogTrigger: HTMLElement | null = null
 const manageOpen = ref(false)
 const editingId = ref('')
@@ -156,15 +157,80 @@ const currentSite = computed(() => browserTabs.value.find(tab => tab.id === acti
 const currentMiniapp = computed(() => miniappTabs.value.find(tab => tab.id === activeTab.value))
 const filteredMiniapps = computed(() => miniapps.value.filter(item => miniappVisible(item.id) && `${item.name} ${item.id}`.toLocaleLowerCase().includes(query.value.trim().toLocaleLowerCase())))
 const currentAddress = computed(() => currentSite.value?.currentUrl || '')
+const addressInput = ref<HTMLInputElement>()
+const addressDraft = ref('')
+const addressEditing = ref(false)
 const pageLoading = computed(() => currentSite.value?.loading ?? false)
 const editingIsBuiltin = computed(() => sites.value.find(site => site.id === editingId.value)?.builtin ?? false)
-const editingBrand = computed(() => sites.value.find(site => site.id === editingId.value)?.brand)
+const editingSite = computed(() => sites.value.find(site => site.id === editingId.value))
+const formAddress = computed(() => { try { return new URL(form.value.url).href } catch { return '' } })
+const editingBrand = computed(() => editingSite.value?.url === formAddress.value ? editingSite.value.brand : undefined)
+const attemptedIcons = new Set<string>()
 watch(sites, () => { if (initialized || !isPlatformApp) saveSites() }, { deep: true, flush: 'sync' })
+watch(sites, () => { if (initialized || !isPlatformApp) cacheSiteIcons() }, { deep: true })
+watch([siteDialog, addType, () => form.value, () => form.value.url, () => form.value.iconUrl, uploadingLogo], (_values, _previous, onCleanup) => {
+  fetchingLogo.value = false
+  if (!siteDialog.value || addType.value !== 'website' || form.value.iconUrl || uploadingLogo.value) return
+  let url: URL
+  try { url = new URL(form.value.url) } catch { return }
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return
+  if (editingSite.value?.url === url.href && (editingSite.value.cachedIcon || editingSite.value.brand)) {
+    previewIcon.value = { url: url.href, icon: editingSite.value.cachedIcon }
+    return
+  }
+  if (previewIcon.value?.url === url.href) return
+  let cancelled = false
+  fetchingLogo.value = true
+  const timer = window.setTimeout(async () => {
+    try {
+      const icon = await loadSiteIcon(url.href)
+      if (!cancelled) previewIcon.value = { url: url.href, icon }
+    } catch { if (!cancelled) previewIcon.value = { url: url.href } }
+    finally { if (!cancelled) fetchingLogo.value = false }
+  }, 500)
+  onCleanup(() => { cancelled = true; window.clearTimeout(timer) })
+})
+watch([activeTab, currentAddress], ([tab, url], [previousTab]) => {
+  if (tab !== previousTab) addressEditing.value = false
+  if (!addressEditing.value) { addressDraft.value = url; addressInput.value?.setCustomValidity('') }
+})
 watch([activeTab, siteDialog, manageOpen, loadError, hostBrowserReady, storageError, storageLoading, permissionReview, permissionsId], () => { void nextTick(() => { syncHostBrowserLayout(); syncMiniappLayout() }) })
 watch(miniappStage, (element, previous) => { if (previous) browserResize?.unobserve(previous); if (element) browserResize?.observe(element); syncMiniappLayout() })
 watch(webContent, (element, previous) => { if (previous) browserResize?.unobserve(previous); if (element) browserResize?.observe(element); syncHostBrowserLayout() })
-function siteToEntry(site: WebsiteEntry): WorkbenchEntry { return { id: site.id, type: 'website', name: site.name, address: site.url, icon: site.iconUrl || site.brand, category: site.category, builtin: site.builtin, visible: site.visible } }
-function entryToSite(entry: WorkbenchEntry): WebsiteEntry { const iconUrl = entry.icon && /^(https:\/\/|data:image\/)/.test(entry.icon) ? entry.icon : undefined; const builtin = entry.builtin ? builtinSites.find(site => site.id === entry.id && site.url === entry.address) : undefined; return { id: entry.id, name: entry.name, url: entry.address, category: entry.category === 'search' ? 'search' : 'assistant', brand: builtin?.id, iconUrl, builtin: entry.builtin, visible: entry.visible } }
+function siteToEntry(site: WebsiteEntry): WorkbenchEntry { return { id: site.id, type: 'website', name: site.name, address: site.url, icon: site.iconUrl || site.brand, cachedIcon: site.cachedIcon, category: site.category, builtin: site.builtin, visible: site.visible } }
+function entryToSite(entry: WorkbenchEntry): WebsiteEntry { const iconUrl = entry.icon && /^(https:\/\/|data:image\/)/.test(entry.icon) ? entry.icon : undefined; const builtin = entry.builtin ? builtinSites.find(site => site.id === entry.id && site.url === entry.address) : undefined; return { id: entry.id, name: entry.name, url: entry.address, category: entry.category === 'search' ? 'search' : 'assistant', brand: builtin?.id, iconUrl, cachedIcon: entry.cachedIcon, builtin: entry.builtin, visible: entry.visible } }
+function cacheSiteIcons() {
+  for (const site of sites.value) {
+    const url = site.url, key = `${site.id}:${url}`
+    if (site.iconUrl || site.cachedIcon || site.brand || attemptedIcons.has(key)) continue
+    attemptedIcons.add(key)
+    void loadSiteIcon(url).then(icon => {
+      if (!icon || !sites.value.includes(site) || site.url !== url || site.iconUrl) return
+      site.cachedIcon = icon
+      for (const tab of browserTabs.value) if (tab.id === site.id && tab.url === url) tab.cachedIcon = icon
+    }).catch(() => { /* Keep the default icon when acquisition or decoding fails. */ })
+  }
+}
+async function loadSiteIcon(url: string): Promise<string | undefined> {
+  let source: string | null
+  if (sdk) source = await sdk.workbench.fetchSiteIcon(url)
+  else {
+    const response = await fetch(new URL('/favicon.ico', url), { signal: AbortSignal.timeout(8000), credentials: 'omit' })
+    if (!response.ok) return
+    const blob = await response.blob()
+    if (!blob.type.startsWith('image/') || blob.size > 512 * 1024) return
+    source = URL.createObjectURL(blob)
+  }
+  if (!source) return
+  try {
+    const image = new Image(); image.src = source; await image.decode()
+    const scale = Math.min(1, 128 / Math.max(image.naturalWidth, image.naturalHeight))
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale)); canvas.height = Math.max(1, Math.round(image.naturalHeight * scale))
+    canvas.getContext('2d')!.drawImage(image, 0, 0, canvas.width, canvas.height)
+    return canvas.toDataURL('image/png')
+  } finally { if (source.startsWith('blob:')) URL.revokeObjectURL(source) }
+}
 async function initializeStorage() {
   storageLoading.value = true; storageError.value = ''
   try {
@@ -186,6 +252,7 @@ async function initializeStorage() {
     otherEntries.value = entries.filter(item => item.type !== 'website')
     sites.value = entries.filter(item => item.type === 'website').map(entryToSite)
     initialized = true
+    cacheSiteIcons()
     if (!miniappManager) {
       miniappManager = new MiniappManager(sdk, request => new Promise(resolve => { permissionReview.value = request; resolveReview = resolve; void nextTick(() => document.querySelector<HTMLElement>('.review-dialog')?.focus()) }), items => {
         miniapps.value = items
@@ -315,6 +382,7 @@ function closeTab(id: string) {
   }
 }
 function openAdd() {
+  previewIcon.value = undefined
   editingId.value = ''
   addType.value = 'website'
   form.value = { name: '', url: '', iconUrl: '' }
@@ -322,6 +390,7 @@ function openAdd() {
   showSiteDialog()
 }
 function editSite(site: WebsiteEntry) {
+  previewIcon.value = undefined
   editingId.value = site.id
   addType.value = 'website'
   form.value = { name: site.name, url: site.url, iconUrl: site.iconUrl || '' }
@@ -372,7 +441,7 @@ async function uploadLogo(event: Event) {
   finally { URL.revokeObjectURL(objectUrl); uploadingLogo.value = false }
 }
 function saveSite() {
-  if (uploadingLogo.value || !form.value.name) return
+  if (uploadingLogo.value || fetchingLogo.value || !form.value.name) return
   let parsed: URL
   try { parsed = new URL(form.value.url) } catch { formError.value = '请输入有效的网址。'; return }
   if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) { formError.value = '网址必须使用 HTTP 或 HTTPS，且不能包含账号密码。'; return }
@@ -382,13 +451,14 @@ function saveSite() {
     catch { formError.value = 'Logo 无效，请重新上传图片。'; return }
   }
   const normalizedUrl = parsed.href
+  const cachedIcon = previewIcon.value?.url === normalizedUrl ? previewIcon.value.icon : editingSite.value?.url === normalizedUrl ? editingSite.value.cachedIcon : undefined
   const duplicate = sites.value.find(site => site.url === normalizedUrl && site.id !== editingId.value)
   if (duplicate) { formError.value = `这个网址已在合集里：${duplicate.name}。`; return }
   if (editingId.value) {
     const target = sites.value.find(site => site.id === editingId.value)
-    if (target) { target.name = form.value.name; target.url = normalizedUrl; target.brand = target.builtin && builtinSites.some(site => site.id === target.id && site.url === normalizedUrl) ? target.id : undefined; target.iconUrl = iconUrl }
+    if (target) { target.cachedIcon = cachedIcon; target.name = form.value.name; target.url = normalizedUrl; target.brand = target.builtin && builtinSites.some(site => site.id === target.id && site.url === normalizedUrl) ? target.id : undefined; target.iconUrl = iconUrl }
   } else {
-    sites.value.push({ id: `custom-${crypto.randomUUID()}`, name: form.value.name, url: normalizedUrl, iconUrl, category: 'assistant', builtin: false, visible: true })
+    sites.value.push({ id: `custom-${crypto.randomUUID()}`, name: form.value.name, url: normalizedUrl, iconUrl, cachedIcon, category: 'assistant', builtin: false, visible: true })
   }
   saveSites()
   closeSiteDialog()
@@ -399,6 +469,25 @@ function deleteSite() {
   closeSiteDialog()
 }
 function restoreDefaults() { sites.value = structuredClone(builtinSites) }
+function navigateAddress() {
+  const tab = currentSite.value, value = addressDraft.value.trim()
+  if (!tab || !value) return
+  let url: URL
+  try {
+    url = new URL(value.includes('://') ? value : `https://${value}`)
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) throw new Error()
+  } catch {
+    addressInput.value?.setCustomValidity('请输入有效的 HTTP 或 HTTPS 网站地址，且不能包含账号密码。')
+    addressInput.value?.reportValidity()
+    return
+  }
+  clearTitleRefresh(tab.id)
+  tab.currentUrl = url.href; tab.pageTitle = ''; tab.error = undefined
+  loadError.value = ''; addressDraft.value = url.href
+  setTabLoading(tab.id, true)
+  addressInput.value?.blur()
+  if (hostBrowserReady.value) hostBrowser?.open(tab.id, url.href)
+}
 function openExternal() {
   if (!currentSite.value) return
   window.open(currentSite.value.currentUrl, '_blank', 'noopener,noreferrer')
@@ -560,6 +649,7 @@ function relayMiraShortcut(event: KeyboardEvent) {
 }
 onMounted(() => {
   if (isPlatformApp) void initializeStorage()
+  else cacheSiteIcons()
   if (!isElectron && window.parent !== window) {
     hostBrowser = connectHostBrowser(() => {
       hostBrowserReady.value = true; browserConnecting.value = false

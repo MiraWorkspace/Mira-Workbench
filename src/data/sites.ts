@@ -9,6 +9,7 @@ export interface WebsiteEntry {
   category: SiteCategory
   brand?: string
   iconUrl?: string
+  cachedIcon?: string
   builtin: boolean
   visible: boolean
 }

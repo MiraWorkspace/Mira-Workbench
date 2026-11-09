@@ -97,3 +97,18 @@ test('retains an existing custom icon URL when importing legacy sites', () => {
   const raw = JSON.stringify([{ id: 'custom-icon', name: 'Custom', url: 'https://example.com/', category: 'assistant', iconUrl: 'https://example.com/icon.png' }])
   assert.equal(parseLegacySites(raw)[0].icon, 'https://example.com/icon.png')
 })
+
+test('preserves automatic icon bytes separately from an uploaded logo when reopening storage', async () => {
+  const storage = new Storage(), store = new WorkbenchStore(storage)
+  const entries = await store.initialize(null, [builtin])
+  entries[0].cachedIcon = 'data:image/png;base64,AQID'
+  await store.save(entries)
+  assert.equal(storage.tables.entries[0].cached_icon, 'data:image/png;base64,AQID')
+  const reopened = await new WorkbenchStore(storage).initialize(null, [builtin])
+  assert.equal(reopened[0].cachedIcon, 'data:image/png;base64,AQID')
+  reopened[0].icon = 'data:image/png;base64,BAUG'
+  await store.save(reopened)
+  const uploaded = await new WorkbenchStore(storage).initialize(null, [builtin])
+  assert.equal(uploaded[0].icon, 'data:image/png;base64,BAUG')
+  assert.equal(uploaded[0].cachedIcon, 'data:image/png;base64,AQID')
+})
