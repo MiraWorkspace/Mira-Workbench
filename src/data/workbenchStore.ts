@@ -1,3 +1,5 @@
+import { normalizePreferences, type WorkbenchPreferences } from './preferences.ts'
+
 export type WorkbenchValue = string | number | null
 export type WorkbenchOperation =
   | { type: 'insert'; table: string; values: Record<string, WorkbenchValue> }
@@ -67,6 +69,19 @@ export function parseLegacySites(raw: string | null): WorkbenchEntry[] {
 export class WorkbenchStore {
   private readonly storage: WorkbenchStorage
   constructor(storage: WorkbenchStorage) { this.storage = storage }
+
+  async readPreferences(): Promise<WorkbenchPreferences> {
+    const [rows] = await this.storage.transaction([{ type: 'select', table: 'settings', where: { key: 'preferences' } }])
+    if (!Array.isArray(rows)) throw new Error('工作台偏好设置无效')
+    return normalizePreferences(rows.length ? JSON.parse(rows[0].value) : undefined)
+  }
+
+  async savePreferences(preferences: WorkbenchPreferences) {
+    await this.storage.transaction([
+      { type: 'delete', table: 'settings', where: { key: 'preferences' } },
+      { type: 'insert', table: 'settings', values: { key: 'preferences', value: JSON.stringify(normalizePreferences(preferences)) } },
+    ])
+  }
 
   private async readRows(): Promise<WorkbenchEntry[]> {
     const result: WorkbenchEntry[] = []

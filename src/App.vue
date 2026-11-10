@@ -10,9 +10,9 @@
       <BrowserToolbar ref="browserToolbar" v-model:address="addressDraft" :loading="pageLoading" :can-go-back="currentSite?.canGoBack ?? false" :can-go-forward="currentSite?.canGoForward ?? false" @editing="addressEditing = $event" @navigate="navigateAddress" @reset="addressDraft = currentAddress; browserToolbar?.resetValidity()" @back="goBack" @forward="goForward" @stop="stopFrame" @reload="reloadFrame" @external="openExternal" />
       <div ref="webContent" class="web-content">
         <template v-if="isElectron">
-          <webview v-for="tab in browserTabs" :key="tab.id" :ref="webviewRef(tab.id)" v-show="activeTab === tab.id" class="site-webview" :src="tab.currentUrl" partition="persist:mira-workbench" webpreferences="contextIsolation=yes,nodeIntegration=no,sandbox=yes,webSecurity=yes" allowpopups @did-start-loading="handleLoadStart(tab.id)" @did-stop-loading="handleLoadFinished(tab.id)" @did-navigate="handleNavigate(tab.id, $event)" @did-navigate-in-page="handleNavigate(tab.id, $event)" @page-title-updated="handleTitleUpdate(tab.id, $event)" @page-favicon-updated="handleFaviconUpdate(tab.id, $event)" @did-fail-load="handleLoadError(tab.id, $event)" @will-navigate="handleWillNavigate(tab.id, $event)" />
+          <webview v-for="tab in residentBrowserTabs" :key="tab.id" :ref="webviewRef(tab.id)" v-show="activeTab === tab.id" class="site-webview" :src="tab.currentUrl" partition="persist:mira-workbench" webpreferences="contextIsolation=yes,nodeIntegration=no,sandbox=yes,webSecurity=yes" allowpopups @did-start-loading="handleLoadStart(tab.id)" @did-stop-loading="handleLoadFinished(tab.id)" @did-navigate="handleNavigate(tab.id, $event)" @did-navigate-in-page="handleNavigate(tab.id, $event)" @page-title-updated="handleTitleUpdate(tab.id, $event)" @page-favicon-updated="handleFaviconUpdate(tab.id, $event)" @did-fail-load="handleLoadError(tab.id, $event)" @will-navigate="handleWillNavigate(tab.id, $event)" />
         </template>
-        <iframe v-else-if="currentSite && !hostBrowserReady && !browserConnecting" :key="currentSite.id" class="site-iframe" :src="currentSite.currentUrl" :title="`${currentSite.name} 网页`" referrerpolicy="no-referrer" sandbox="allow-forms allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-downloads allow-modals allow-pointer-lock allow-presentation" @load="frameLoaded" />
+        <iframe v-for="tab in !isElectron && !hostBrowserReady && !browserConnecting ? residentBrowserTabs : []" :key="tab.id" v-show="activeTab === tab.id" :data-active="activeTab === tab.id" class="site-iframe" :src="tab.currentUrl" :title="`${tab.name} 网页`" referrerpolicy="no-referrer" sandbox="allow-forms allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-downloads allow-modals allow-pointer-lock allow-presentation" @load="frameLoaded(tab.id)" />
         <div v-if="loadError && currentSite" class="embed-warning"><div class="warning-icon"><TriangleAlert :size="22" /></div><h2>{{ currentSite.name }}暂时无法在工作台显示</h2><p>{{ loadError }}</p><button class="add-button" type="button" @click="openExternal"><ExternalLink :size="15" />在系统浏览器打开</button><button class="text-button" type="button" @click="reloadFrame">重试嵌入</button></div>
       </div>
     </section>
@@ -21,7 +21,7 @@
     <FloatingTransition kind="dialog"><SiteDialog v-if="siteDialog" :site="editingSite" :sites="sites" :load-icon="loadSiteIcon" :is-platform-app="isPlatformApp" :managing-miniapp="managingMiniapp" :miniapp-error="miniappError" :miniapp-notice="miniappNotice" @close="closeSiteDialog" @save="saveSite" @delete="deleteSite" @select-miniapp="selectMiniapp" /></FloatingTransition>
 
     <FloatingTransition kind="dialog"><div v-if="editingMiniapp" class="dialog-backdrop dialog-backdrop--floating" @click.self="editingMiniapp = ''" @keydown.esc.stop="editingMiniapp = ''"><section class="site-dialog" role="dialog" aria-modal="true" aria-labelledby="edit-miniapp-title"><div class="dialog-heading"><h2 id="edit-miniapp-title">编辑小程序</h2><button class="icon-button" type="button" aria-label="关闭" @click="editingMiniapp = ''"><X :size="17" /></button></div><form @submit.prevent="saveMiniappName"><label><span>显示名称</span><input v-model.trim="miniappName" maxlength="40" required /></label><div class="dialog-actions"><span class="dialog-spacer"></span><button class="cancel-button" type="button" @click="editingMiniapp = ''">取消</button><button class="add-button" type="submit" :disabled="!miniappName">保存</button></div></form></section></div></FloatingTransition>
-    <FloatingTransition kind="dialog"><ManageDialog v-if="manageOpen" :sites="sites" :miniapps="miniapps" :entries="otherEntries" :busy="managingMiniapp" :error="miniappError" @close="manageOpen = false" @edit="site => { manageOpen = false; editSite(site) }" @site-visible="(site, visible) => site.visible = visible" @permissions="openPermissions" @revoke="item => manageMiniapp(item, 'revoke')" @uninstall="item => manageMiniapp(item, 'uninstall')" @miniapp-visible="setMiniappVisible" @restore="restoreDefaults" @done="saveSites(); manageOpen = false" /></FloatingTransition>
+    <FloatingTransition kind="dialog"><ManageDialog v-if="manageOpen" :sites="sites" :miniapps="miniapps" :entries="otherEntries" :preferences="preferences" :busy="managingMiniapp" :error="miniappError" @preferences="updatePreferences" @close="manageOpen = false" @edit="site => { manageOpen = false; editSite(site) }" @site-visible="(site, visible) => site.visible = visible" @permissions="openPermissions" @revoke="item => manageMiniapp(item, 'revoke')" @uninstall="item => manageMiniapp(item, 'uninstall')" @miniapp-visible="setMiniappVisible" @restore="restoreDefaults" @done="saveSites(); manageOpen = false" /></FloatingTransition>
 
     <FloatingTransition kind="dialog"><PermissionsDialog v-if="permissionItem" v-model:draft="permissionDraft" :item="permissionItem" :busy="managingMiniapp" :error="miniappError" @close="permissionsId = ''" @save="savePermissions" @revoke="manageMiniapp(permissionItem, 'revoke')" @remove-directory="id => miniappAction(() => miniappManager!.removeDirectory(permissionsId, id))" @add-directory="access => miniappAction(() => miniappManager!.addDirectory(permissionsId, access))" /></FloatingTransition>
     <FloatingTransition kind="dialog"><PermissionReviewDialog v-if="permissionReview" :review="permissionReview" @finish="finishReview" /></FloatingTransition>
@@ -48,6 +48,7 @@ import { builtinSites, readSites, sitesStorageKey, type WebsiteEntry } from './d
 import { connectHostBrowser, connectPlatformBrowser } from './hostBrowser'
 import { siteIconUrl } from './siteIcon'
 import { WorkbenchStore, type WorkbenchEntry } from './data/workbenchStore'
+import { defaultPreferences, normalizePreferences, type WorkbenchPreferences } from './data/preferences'
 import { MiniappManager, type InstalledMiniapp, type ReviewRequest } from './miniapps/manager'
 import type { MiniappCapability } from './miniapps/package'
 import { connectMiraApp, type MiraAppSdk } from '@mira/app-sdk'
@@ -55,6 +56,10 @@ import { connectMiraApp, type MiraAppSdk } from '@mira/app-sdk'
 const logoUrl = `${import.meta.env.BASE_URL}mira-workbench-logo.png`
 const isElectron = typeof (document.createElement('webview') as HTMLElement & { getWebContentsId?: unknown }).getWebContentsId === 'function'
 const isPlatformApp = typeof (window as Window & { miraAppHost?: { ready?: unknown } }).miraAppHost?.ready === 'function'
+const preferencesKey = `${__MIRA_APP_ID__}.preferences.v1`
+const preferences = ref<WorkbenchPreferences>({ ...defaultPreferences })
+if (!isPlatformApp) { try { preferences.value = normalizePreferences(JSON.parse(localStorage.getItem(preferencesKey) || 'null')) } catch { /* Use defaults for invalid local preferences. */ } }
+let preferenceSave = Promise.resolve()
 const hostBrowserReady = ref(false)
 const browserConnecting = ref(isPlatformApp || (!isElectron && window.parent !== window && /Electron\//.test(navigator.userAgent)))
 const webContent = ref<HTMLDivElement>()
@@ -69,7 +74,7 @@ const permissionsId = ref('')
 const permissionDraft = ref<MiniappCapability[]>([])
 const permissionItem = computed(() => miniapps.value.find(item => item.id === permissionsId.value))
 const miniapps = ref<InstalledMiniapp[]>([])
-const miniappTabs = ref<Array<{ id: string; name: string; appId: string; viewId: number; icon?: string; tabPinned?: boolean; muted?: boolean; detached?: boolean; returning?: boolean }>>([])
+const miniappTabs = ref<Array<{ id: string; name: string; appId: string; viewId: number; icon?: string; tabPinned?: boolean; muted?: boolean; detached?: boolean; returning?: boolean; suspended?: boolean; resuming?: boolean }>>([])
 const miniappStage = ref<HTMLElement>()
 const openingMiniapp = ref(false)
 const miniappError = ref('')
@@ -89,7 +94,7 @@ const activeTab = ref(homeTabs.value[0]!.id)
 const currentHome = computed(() => homeTabs.value.find(tab => tab.id === activeTab.value))
 const homeQuery = computed({ get: () => currentHome.value?.query || '', set: value => { if (currentHome.value) currentHome.value.query = value } })
 const tabMenuOpen = ref(false)
-const { browserTabs, currentSite, currentAddress, browserToolbar, addressDraft, addressEditing, pageLoading, loadError, externalError, openSite, openBrowserTab, duplicateTab, activateTab, detachTab, reloadTab, toggleMute, closeTab, navigateAddress, openExternal, webviewRef, reloadFrame, goBack, goForward, stopFrame, handleLoadStart, handleLoadFinished, frameLoaded, handleNavigate, handleLoadError, handleTitleUpdate, handleWillNavigate, handleFaviconUpdate, handleHostBrowserState } = useBrowserTabs({ activeTab, hostBrowserReady, getHostBrowser: () => hostBrowser, getSdk: () => sdk, isElectron, isPlatformApp })
+const { browserTabs, residentBrowserTabs, suspendTab, currentSite, currentAddress, browserToolbar, addressDraft, addressEditing, pageLoading, loadError, externalError, openSite, openBrowserTab, duplicateTab, activateTab, detachTab, reloadTab, toggleMute, closeTab, navigateAddress, openExternal, webviewRef, reloadFrame, goBack, goForward, stopFrame, handleLoadStart, handleLoadFinished, frameLoaded, handleNavigate, handleLoadError, handleTitleUpdate, handleWillNavigate, handleFaviconUpdate, handleHostBrowserState } = useBrowserTabs({ activeTab, hostBrowserReady, getHostBrowser: () => hostBrowser, getSdk: () => sdk, isElectron, isPlatformApp })
 const siteDialog = ref(false)
 let dialogTrigger: HTMLElement | null = null
 const manageOpen = ref(false)
@@ -107,7 +112,7 @@ const tabOrder = ref<string[]>([])
 const rawWorkspaceTabs = computed<WorkbenchTabView[]>(() => [
   ...homeTabs.value.map(tab => ({ id: tab.id, kind: 'home' as const, name: '工作台', loading: false, pinned: tab.pinned, muted: false })),
   ...browserTabs.value.filter(tab => !tab.detached).map(tab => ({ id: tab.id, kind: 'website' as const, name: tab.pageTitle || tab.name || (() => { try { return new URL(tab.currentUrl).hostname } catch { return '无标题' } })(), url: tab.currentUrl, brand: tab.brand, favicon: tab.faviconUrl, customIcon: tab.iconUrl, cachedIcon: tab.cachedIcon, loading: tab.loading, pinned: !!tab.tabPinned, muted: !!tab.muted, returning: tab.returning })),
-  ...miniappTabs.value.filter(tab => !tab.detached).map(tab => ({ id: tab.id, kind: 'miniapp' as const, name: tab.name, icon: tab.icon, loading: false, pinned: !!tab.tabPinned, muted: !!tab.muted, returning: tab.returning })),
+  ...miniappTabs.value.filter(tab => !tab.detached).map(tab => ({ id: tab.id, kind: 'miniapp' as const, name: tab.name, icon: tab.icon, loading: !!tab.resuming, pinned: !!tab.tabPinned, muted: !!tab.muted, returning: tab.returning })),
 ])
 const workspaceTabs = computed(() => {
   const byId = new Map(rawWorkspaceTabs.value.map(tab => [tab.id, tab]))
@@ -122,6 +127,21 @@ watch(() => browserTabs.value.filter(tab => tab.detached).map(tab => ({ id: tab.
     void hostBrowser?.control(tab.id, 'presentation', undefined, undefined, { icon: tab.icon }).catch(error => { externalError.value = String(error) })
   }
 })
+let recentTabs: string[] = []
+watch([activeTab, () => preferences.value.tabCacheCount, () => [...browserTabs.value, ...miniappTabs.value].map(tab => `${tab.id}:${Boolean(tab.detached)}:${Boolean(tab.suspended)}`)], () => {
+  const tabs = [...browserTabs.value, ...miniappTabs.value]
+  const current = tabs.find(tab => tab.id === activeTab.value)
+  if (current?.suspended) activateWorkspaceTab(current.id)
+  const ids = new Set(tabs.map(tab => tab.id))
+  recentTabs = [activeTab.value, ...recentTabs.filter(id => id !== activeTab.value)].filter(id => ids.has(id))
+  const background = tabs.filter(tab => !tab.detached && !tab.suspended && tab.id !== activeTab.value).sort((a, b) => recentTabs.indexOf(a.id) - recentTabs.indexOf(b.id))
+  for (const tab of background.slice(preferences.value.tabCacheCount)) {
+    if ('viewId' in tab) {
+      tab.suspended = true
+      void miniappManager?.close(tab.viewId).catch(error => { tab.suspended = false; externalError.value = String(error) })
+    } else suspendTab(tab.id)
+  }
+}, { flush: 'post' })
 const attemptedIcons = new Set<string>()
 watch([() => [...homeTabs.value, ...browserTabs.value, ...miniappTabs.value].map(tab => tab.id), () => rawWorkspaceTabs.value.map(tab => tab.id), activeTab], ([ids, visibleIds]) => {
   tabOrder.value = [...tabOrder.value.filter(id => ids.includes(id)), ...ids.filter(id => !tabOrder.value.includes(id))]
@@ -174,7 +194,7 @@ async function initializeStorage() {
     const context = await sdk.context.get()
     if (context.appId !== __MIRA_APP_ID__) throw new Error('工作台应用身份不匹配')
     if (!hostBrowser) {
-      hostBrowser = connectPlatformBrowser(sdk, handleHostBrowserState, url => openBrowserTab(url))
+      hostBrowser = connectPlatformBrowser(sdk, handleHostBrowserState, url => openBrowserTab(url), message => { externalError.value = message })
       hostBrowserReady.value = true; browserConnecting.value = false
       browserResize = new ResizeObserver(() => { syncHostBrowserLayout(); syncMiniappLayout() })
       if (webContent.value) browserResize.observe(webContent.value)
@@ -187,22 +207,35 @@ async function initializeStorage() {
     const entries = await store.initialize(() => sdk!.storage.importLegacyWorkbenchSites(), builtinSites.map(siteToEntry))
     otherEntries.value = entries.filter(item => item.type !== 'website')
     sites.value = entries.filter(item => item.type === 'website').map(entryToSite)
+    preferences.value = await store.readPreferences()
+    await hostBrowser?.preferences(preferences.value.openNewWindowInBrowser)
     initialized = true
     cacheSiteIcons()
     if (!miniappManager) {
       miniappManager = new MiniappManager(sdk, request => new Promise(resolve => { permissionReview.value = request; resolveReview = resolve }), items => {
+        const invalid = new Set(miniapps.value.filter(old => !items.some(item => item.id === old.id && item.release === old.release && item.reviewed)).map(item => item.id))
+        miniappTabs.value = miniappTabs.value.filter(tab => !tab.suspended || !invalid.has(tab.appId))
         miniapps.value = items
         const added = items.filter(item => !otherEntries.value.some(entry => entry.type === 'miniapp' && entry.address === item.id))
         if (added.length) { otherEntries.value.push(...added.map(item => ({ id: `miniapp:${item.id}`, type: 'miniapp' as const, name: item.name, address: item.id, builtin: false, visible: true }))); saveSites() }
       }, viewId => {
         const tab = miniappTabs.value.find(tab => tab.viewId === viewId)
-        if (tab) { miniappTabs.value = miniappTabs.value.filter(item => item !== tab); if (activeTab.value === tab.id) activeTab.value = '' }
+        if (tab && !tab.suspended) { miniappTabs.value = miniappTabs.value.filter(item => item !== tab); if (activeTab.value === tab.id) activeTab.value = '' }
       })
     }
     try { await miniappManager.initialize() }
     catch (error) { miniappError.value = `${error instanceof Error ? error.message : '读取小程序失败'}，请修复后重新加载 Workbench。` }
   } catch (error) { storageError.value = error instanceof Error ? error.message : '读取数据失败' }
   finally { storageLoading.value = false }
+}
+function updatePreferences(value: WorkbenchPreferences) {
+  preferences.value = normalizePreferences(value)
+  const snapshot = { ...preferences.value }
+  preferenceSave = preferenceSave.then(async () => {
+    if (isPlatformApp) await store?.savePreferences(snapshot)
+    else localStorage.setItem(preferencesKey, JSON.stringify(snapshot))
+    await hostBrowser?.preferences(snapshot.openNewWindowInBrowser)
+  }).catch(error => { externalError.value = `偏好设置保存失败：${error instanceof Error ? error.message : String(error)}` })
 }
 function saveSites() {
   if (!isPlatformApp) { localStorage.setItem(sitesStorageKey, JSON.stringify(sites.value)); return }
@@ -292,6 +325,7 @@ function activateWorkspaceTab(id: string) {
     if (!tab) return
     if (tab.detached) { tab.detached = false; void controlMiniapp({ type: 'reattach', id: tab.viewId }).catch(error => { tab.detached = true; externalError.value = String(error) }) }
     activeTab.value = id
+    if (tab.suspended) void resumeMiniapp(tab)
     return
   }
   activateTab(id)
@@ -337,10 +371,10 @@ async function handleTabAction(action: 'reload' | 'duplicate' | 'pin' | 'mute' |
           const item = miniapps.value.find(item => item.id === miniapp.appId)
           if (item) await openMiniapp(item, true)
         } else {
-          if (action === 'reload') await controlMiniapp({ type: 'reload', id: miniapp.viewId })
+          if (action === 'reload') { if (miniapp.suspended) { activateWorkspaceTab(id); return }; await controlMiniapp({ type: 'reload', id: miniapp.viewId }) }
           else {
             const muted = !miniapp.muted
-            await Promise.all(miniappTabs.value.filter(item => item.appId === miniapp.appId).map(async item => { await controlMiniapp({ type: 'mute', id: item.viewId, muted }); item.muted = muted }))
+            await Promise.all(miniappTabs.value.filter(item => item.appId === miniapp.appId).map(async item => { if (!item.suspended) await controlMiniapp({ type: 'mute', id: item.viewId, muted }); item.muted = muted }))
           }
         }
       }
@@ -364,7 +398,7 @@ function detachWorkspaceTab(id: string, grabX: number) {
     const tab = miniappTabs.value.find(item => item.id === id)
     if (!tab || !sdk) return
     tab.detached = true; activeTab.value = ''
-    pendingDetach = controlMiniapp({ type: 'detach', id: tab.viewId, dragOffset: grabX, presentation }).catch(error => { tab.detached = false; activeTab.value = id; externalError.value = String(error) })
+    pendingDetach = (async () => { if (tab.suspended) await resumeMiniapp(tab); if (tab.suspended) throw new Error('小程序尚未加载'); await controlMiniapp({ type: 'detach', id: tab.viewId, dragOffset: grabX, presentation }) })().catch(error => { tab.detached = false; activeTab.value = id; externalError.value = String(error) })
     return
   }
   if (!isPlatformApp) { externalError.value = '拖出独立窗口需要在 Mira 桌面端打开工作台'; return }
@@ -398,16 +432,29 @@ async function openMiniapp(item: InstalledMiniapp, duplicate = false) {
   } catch (error) { miniappError.value = error instanceof Error ? error.message : '小程序打开失败' }
   finally { openingMiniapp.value = false }
 }
+async function resumeMiniapp(tab: (typeof miniappTabs.value)[number]) {
+  if (!miniappManager || tab.resuming) return
+  tab.resuming = true
+  try {
+    const viewId = await miniappManager.open(tab.appId, true)
+    if (typeof viewId !== 'number') return
+    if (!miniappTabs.value.includes(tab)) { await miniappManager.close(viewId); return }
+    tab.viewId = viewId; tab.suspended = false
+    if (tab.muted) await controlMiniapp({ type: 'mute', id: viewId, muted: true })
+    await nextTick(); syncMiniappLayout()
+  } catch (error) { externalError.value = error instanceof Error ? error.message : '小程序重新加载失败，请重试' }
+  finally { tab.resuming = false }
+}
 function syncMiniappLayout() {
   if (!sdk) return
   const bounds = miniappStage.value?.getBoundingClientRect()
-  for (const tab of miniappTabs.value) void sdk.views.control({ type: 'layout', id: tab.viewId, visible: !tab.detached && tab.id === activeTab.value && !storageError.value && !storageLoading.value && Boolean(bounds?.width && bounds.height), bounds: bounds ? { x: Math.max(0, bounds.x), y: Math.max(0, bounds.y), width: bounds.width, height: bounds.height } : { x: 0, y: 0, width: 0, height: 0 } }).catch(() => undefined)
+  for (const tab of miniappTabs.value.filter(tab => !tab.suspended)) void sdk.views.control({ type: 'layout', id: tab.viewId, visible: !tab.detached && tab.id === activeTab.value && !storageError.value && !storageLoading.value && Boolean(bounds?.width && bounds.height), bounds: bounds ? { x: Math.max(0, bounds.x), y: Math.max(0, bounds.y), width: bounds.width, height: bounds.height } : { x: 0, y: 0, width: 0, height: 0 } }).catch(() => undefined)
 }
 function closeMiniapp(id: string) {
   const index = miniappTabs.value.findIndex(tab => tab.id === id)
   if (index < 0) return
   const [tab] = miniappTabs.value.splice(index, 1)
-  void miniappManager?.close(tab.viewId).catch(() => undefined)
+  if (!tab.suspended) void miniappManager?.close(tab.viewId).catch(() => undefined)
   if (activeTab.value === id) activeTab.value = ''
 }
 function openAdd() { editingId.value = ''; showSiteDialog() }
@@ -483,7 +530,8 @@ onMounted(() => {
     hostBrowser = connectHostBrowser(() => {
       hostBrowserReady.value = true; browserConnecting.value = false
       window.clearTimeout(browserConnectTimer)
-      for (const tab of browserTabs.value) hostBrowser?.open(tab.id, tab.currentUrl)
+      void hostBrowser?.preferences(preferences.value.openNewWindowInBrowser).catch(error => { externalError.value = String(error) })
+      for (const tab of residentBrowserTabs.value) hostBrowser?.open(tab.id, tab.currentUrl)
       void nextTick(syncHostBrowserLayout)
     }, handleHostBrowserState)
     browserResize = new ResizeObserver(() => { syncHostBrowserLayout(); syncMiniappLayout() })

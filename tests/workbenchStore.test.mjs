@@ -126,3 +126,16 @@ test('persists pinned state for websites and miniapps and reads old rows as unpi
   await store.save(reopened)
   assert.equal((await store.initialize(null, [builtin]))[0].pinned, false)
 })
+
+test('defaults to three cached tabs and persists preferences without replacing migration markers', async () => {
+  const storage = new Storage(), store = new WorkbenchStore(storage)
+  await store.initialize(null, [builtin])
+  assert.deepEqual(await store.readPreferences(), { openNewWindowInBrowser: false, tabCacheCount: 3 })
+  for (const count of [0, 10, 3]) {
+    await store.savePreferences({ openNewWindowInBrowser: true, tabCacheCount: count })
+    assert.deepEqual(await new WorkbenchStore(storage).readPreferences(), { openNewWindowInBrowser: true, tabCacheCount: count })
+  }
+  assert.equal(storage.tables.settings.find(row => row.key === 'legacy_sites_imported').value, '1')
+  await store.savePreferences({ openNewWindowInBrowser: false, tabCacheCount: 20 })
+  assert.equal((await store.readPreferences()).tabCacheCount, 10)
+})

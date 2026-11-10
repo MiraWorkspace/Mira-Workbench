@@ -10,6 +10,7 @@ type BrowserWebview = HTMLElement & { reload: () => void; stop: () => void; setA
 export function useBrowserTabs(options: { activeTab: Ref<string>; hostBrowserReady: Ref<boolean>; getHostBrowser: () => ReturnType<typeof connectHostBrowser> | undefined; getSdk: () => MiraAppSdk | undefined; isElectron: boolean; isPlatformApp: boolean }) {
   const { activeTab, hostBrowserReady, isElectron, isPlatformApp } = options
   const browserTabs = ref<BrowserTab[]>([])
+  const residentBrowserTabs = computed(() => browserTabs.value.filter(tab => !tab.suspended))
   const currentSite = computed(() => browserTabs.value.find(tab => tab.id === activeTab.value))
   const currentAddress = computed(() => currentSite.value?.currentUrl || '')
   const browserToolbar = ref<InstanceType<typeof BrowserToolbar>>()
@@ -36,7 +37,7 @@ function openBrowserTab(value: string, site?: WebsiteEntry) {
   const tab: BrowserTab = site
     ? { ...site, currentUrl: url.href, loading: true, pageTitle: '', canGoBack: false, canGoForward: false }
     : { id: `browser-${crypto.randomUUID()}`, name: '', url: url.href, currentUrl: url.href, category: 'assistant', builtin: false, visible: true, loading: true, pageTitle: '', canGoBack: false, canGoForward: false }
-  tab.muted = muted; tab.detached = false; tab.error = undefined
+  tab.muted = muted; tab.detached = false; tab.suspended = false; tab.error = undefined
   browserTabs.value.push(tab)
   activeTab.value = tab.id
   loadError.value = ''
@@ -48,6 +49,13 @@ function openBrowserTab(value: string, site?: WebsiteEntry) {
 }
 function activateTab(id: string) {
   const tab = tabById(id)
+  if (tab?.suspended) {
+    tab.suspended = false; tab.loading = true; tab.error = undefined
+    if (hostBrowserReady.value) {
+      options.getHostBrowser()?.open(id, tab.currentUrl)
+      if (tab.muted) void options.getHostBrowser()?.control(id, 'mute', true).catch(error => { externalError.value = String(error) })
+    }
+  }
   if (tab?.detached && hostBrowserReady.value) { tab.detached = false; void options.getHostBrowser()?.control(id, 'reattach').catch(error => { tab.detached = true; externalError.value = String(error) }) }
   activeTab.value = id; loadError.value = tab?.error || ''
 }
@@ -55,6 +63,7 @@ function detachTab(id: string, grabX?: number, presentation?: { title: string; i
   const tab = tabById(id)
   if (!tab) return
   if (!hostBrowserReady.value) return
+  if (tab.suspended) activateTab(id)
   tab.detached = true
   return options.getHostBrowser()?.control(id, 'detach', undefined, grabX, presentation).catch(error => { tab.detached = false; activeTab.value = id; externalError.value = String(error) })
 }
@@ -67,6 +76,7 @@ function duplicateTab(id: string) {
 function reloadTab(id: string) {
   const tab = tabById(id)
   if (!tab) return
+  if (tab.suspended) { activateTab(id); return }
   tab.error = undefined
   if (activeTab.value === id) loadError.value = ''
   setTabLoading(id, true)
@@ -81,6 +91,7 @@ async function toggleMute(id: string) {
   const targets = browserTabs.value.filter(item => new URL(item.currentUrl).origin === origin)
   if (!hostBrowserReady.value && !isElectron) throw new Error('网站静音需要在 Mira 桌面端使用')
   await Promise.all(targets.map(async target => {
+    if (target.suspended) { target.muted = muted; return }
     if (hostBrowserReady.value) await options.getHostBrowser()?.control(target.id, 'mute', muted)
     else webviewEls.get(target.id)?.setAudioMuted(muted)
     target.muted = muted
@@ -94,13 +105,21 @@ function closeTab(id: string) {
   const index = browserTabs.value.findIndex(tab => tab.id === id)
   if (index < 0) return
   clearTitleRefresh(id)
-  controlBrowser(id, 'close')
+  if (!browserTabs.value[index]!.suspended) controlBrowser(id, 'close')
   webviewEls.delete(id)
   browserTabs.value.splice(index, 1)
   if (activeTab.value === id) {
     activeTab.value = browserTabs.value[Math.max(0, index - 1)]?.id || ''
     loadError.value = currentSite.value?.error || ''
   }
+}
+function suspendTab(id: string) {
+  const tab = tabById(id)
+  if (!tab || tab.suspended || tab.detached || activeTab.value === id) return
+  tab.suspended = true; tab.loading = false; tab.canGoBack = false; tab.canGoForward = false
+  clearTitleRefresh(id)
+  if (hostBrowserReady.value) controlBrowser(id, 'close')
+  webviewEls.delete(id)
 }
 function navigateAddress() {
   const tab = currentSite.value, value = addressDraft.value.trim()
@@ -147,7 +166,7 @@ function reloadFrame() {
     webview.reload()
   }
   else if (currentSite.value) {
-    const frame = document.querySelector<HTMLIFrameElement>('.site-iframe')
+    const frame = document.querySelector<HTMLIFrameElement>('.site-iframe[data-active="true"]')
     if (frame) frame.src = frame.src
   }
 }
@@ -159,7 +178,7 @@ function stopFrame() {
   if (hostBrowserReady.value) controlBrowser(tab.id, 'stop')
   else if (isElectron) webviewEls.get(tab.id)?.stop()
   else {
-    try { document.querySelector<HTMLIFrameElement>('.site-iframe')?.contentWindow?.stop() } catch { /* Cross-origin iframe control is optional. */ }
+    try { document.querySelector<HTMLIFrameElement>('.site-iframe[data-active="true"]')?.contentWindow?.stop() } catch { /* Cross-origin iframe control is optional. */ }
   }
   setTabLoading(tab.id, false)
 }
@@ -196,7 +215,7 @@ function handleLoadFinished(id: string) {
   const tab = tabById(id)
   if (tab && isElectron) webviewEls.get(id)?.setAudioMuted(Boolean(tab.muted))
 }
-function frameLoaded() { loadError.value = ''; if (currentSite.value) setTabLoading(currentSite.value.id, false) }
+function frameLoaded(id: string) { if (activeTab.value === id) loadError.value = ''; setTabLoading(id, false) }
 function handleNavigate(id: string, event: Event) {
   const source = event as Event & { url?: string; detail?: { url?: string } }
   const url = source.url ?? source.detail?.url
@@ -243,7 +262,7 @@ function handleFaviconUpdate(id: string, event: Event) {
 }
 function handleHostBrowserState(state: HostBrowserState) {
   const tab = tabById(state.tabId)
-  if (!tab) return
+  if (!tab || tab.suspended) return
   if (state.url) tab.currentUrl = state.url
   if (state.title) tab.pageTitle = state.title
   tab.loading = state.loading
@@ -262,5 +281,5 @@ function handleHostBrowserState(state: HostBrowserState) {
 }
 
   onUnmounted(() => { for (const id of titleRefreshTimers.keys()) clearTitleRefresh(id) })
-  return { browserTabs, currentSite, currentAddress, browserToolbar, addressDraft, addressEditing, pageLoading, loadError, externalError, openSite, openBrowserTab, duplicateTab, activateTab, detachTab, reloadTab, toggleMute, closeTab, navigateAddress, openExternal, webviewRef, reloadFrame, goBack, goForward, stopFrame, handleLoadStart, handleLoadFinished, frameLoaded, handleNavigate, handleLoadError, handleTitleUpdate, handleWillNavigate, handleFaviconUpdate, handleHostBrowserState }
+  return { browserTabs, residentBrowserTabs, suspendTab, currentSite, currentAddress, browserToolbar, addressDraft, addressEditing, pageLoading, loadError, externalError, openSite, openBrowserTab, duplicateTab, activateTab, detachTab, reloadTab, toggleMute, closeTab, navigateAddress, openExternal, webviewRef, reloadFrame, goBack, goForward, stopFrame, handleLoadStart, handleLoadFinished, frameLoaded, handleNavigate, handleLoadError, handleTitleUpdate, handleWillNavigate, handleFaviconUpdate, handleHostBrowserState }
 }
