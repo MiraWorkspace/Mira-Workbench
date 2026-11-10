@@ -8,12 +8,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { LayoutGrid } from 'lucide-vue-next'
+import { siteIconUrl } from '../siteIcon'
 
 const props = defineProps<{ brand?: string; name: string; url: string; favicon?: string | null; customIcon?: string; cachedIcon?: string }>()
-const extensions: Record<string, string> = { chatgpt: 'png', claude: 'png', deepseek: 'svg', doubao: 'png', gemini: 'png', google: 'svg', grok: 'png', kimi: 'ico', minimax: 'png', nami: 'svg', qwen: 'png', tiangong: 'png', wenxin: 'ico', xiaoyi: 'png', xinghuo: 'ico', yuanbao: 'png', zhipu: 'png' }
-const brandIcon = computed(() => props.brand && extensions[props.brand] ? `${import.meta.env.BASE_URL}favicons/${props.brand}.${extensions[props.brand]}` : undefined)
 const failed = ref(false)
-const iconUrl = computed(() => props.customIcon || props.cachedIcon || brandIcon.value || props.favicon)
+const iconUrl = computed(() => siteIconUrl(props))
 const imageLoaded = ref(false)
 watch(iconUrl, () => { failed.value = false; imageLoaded.value = false }, { flush: 'sync' })
 </script>

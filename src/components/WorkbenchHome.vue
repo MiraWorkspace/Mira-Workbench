@@ -8,11 +8,11 @@
           <span class="site-card__name"><Pin v-if="entry.pinned" :size="12" aria-label="已置顶" /><span>{{ entry.name }}</span></span>
         </button>
       </div>
-      <div v-if="menu" class="entry-menu" role="menu" :style="{ left: `${menu.x}px`, top: `${menu.y}px` }" @keydown.esc.stop="closeMenu" @contextmenu.prevent>
+      <FloatingTransition><div v-if="menu" class="entry-menu" role="menu" :style="{ left: `${menu.x}px`, top: `${menu.y}px` }" @keydown.esc.stop="closeMenu" @contextmenu.prevent>
         <button type="button" role="menuitem" @click="action('hide')">隐藏</button>
         <button type="button" role="menuitem" @click="action('pin')">{{ menu.entry.pinned ? '取消置顶' : '置顶' }}</button>
         <template v-if="!menu.entry.builtin"><button type="button" role="menuitem" @click="action('edit')">编辑</button><button class="entry-menu__delete" type="button" role="menuitem" @click="action('delete')">删除</button></template>
-      </div>
+      </div></FloatingTransition>
       <p v-if="error" role="alert">{{ error }}</p><p v-if="notice" role="status">{{ notice }}</p>
       <div v-if="!filteredEntries.length" class="empty-state"><span><Search :size="22" /></span><strong>没有找到匹配的网站或小程序</strong><p>试试其他名称，或添加你自己的网址。</p><button type="button" @click="$emit('add')"><Plus :size="15" />添加网站</button></div>
     </div>
@@ -23,6 +23,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { Pin, Plus, Search, X } from 'lucide-vue-next'
 import BrandMark from './BrandMark.vue'
+import FloatingTransition from './FloatingTransition.vue'
 import type { GridEntry } from '../types'
 
 const props = defineProps<{ entries: GridEntry[]; openingMiniapp: boolean; error: string; notice: string }>()

@@ -3,7 +3,7 @@ import type { MiraAppSdk } from '@mira/app-sdk'
 export interface HostBrowserState {
   tabId: string; url?: string; title?: string; loading: boolean; canGoBack?: boolean; canGoForward?: boolean; muted?: boolean; detached?: boolean; error?: string; faviconUrl?: string | null
 }
-export type BrowserAction = 'back' | 'forward' | 'reload' | 'stop' | 'close' | 'mute' | 'detach' | 'reattach' | 'end-drag'
+export type BrowserAction = 'back' | 'forward' | 'reload' | 'stop' | 'close' | 'mute' | 'detach' | 'reattach' | 'end-drag' | 'presentation'
 
 export function connectPlatformBrowser(sdk: MiraAppSdk, state: (value: HostBrowserState) => void, openTab: (url: string) => void) {
   let disposed = false
@@ -14,7 +14,7 @@ export function connectPlatformBrowser(sdk: MiraAppSdk, state: (value: HostBrows
     else if (value?.type === 'open-tab' && typeof value.url === 'string') openTab(value.url)
   }
   window.addEventListener('message', receive)
-  type BrowserRequest = Parameters<typeof sdk.workbench.browser>[0] | { type: 'control'; tabId: string; action: BrowserAction; muted?: boolean; dragOffset?: number; presentation?: { title: string; icon?: string } } | { type: 'overlay'; open: boolean }
+  type BrowserRequest = Parameters<typeof sdk.workbench.browser>[0] | { type: 'control'; tabId: string; action: BrowserAction; muted?: boolean; dragOffset?: number; presentation?: { title?: string; icon?: string } } | { type: 'overlay'; open: boolean }
   const requestBrowser = sdk.workbench.browser as (request: BrowserRequest) => Promise<void>
   const send = (request: BrowserRequest) => {
     void requestBrowser(request).catch(() => {
@@ -23,7 +23,7 @@ export function connectPlatformBrowser(sdk: MiraAppSdk, state: (value: HostBrows
   }
   return {
     open(tabId: string, url: string) { send({ type: 'open', tabId, url }) },
-    control(tabId: string, action: BrowserAction, muted?: boolean, dragOffset?: number, presentation?: { title: string; icon?: string }) { return requestBrowser({ type: 'control', tabId, action, ...(action === 'mute' ? { muted: Boolean(muted) } : {}), ...(dragOffset !== undefined ? { dragOffset } : {}), ...(presentation ? { presentation } : {}) }) },
+    control(tabId: string, action: BrowserAction, muted?: boolean, dragOffset?: number, presentation?: { title?: string; icon?: string }) { return requestBrowser({ type: 'control', tabId, action, ...(action === 'mute' ? { muted: Boolean(muted) } : {}), ...(dragOffset !== undefined ? { dragOffset } : {}), ...(presentation ? { presentation } : {}) }) },
     overlay(open: boolean) { return requestBrowser({ type: 'overlay', open }) },
     layout(tabId: string, element: HTMLElement | undefined, visible: boolean) {
       const bounds = element?.getBoundingClientRect()
@@ -52,7 +52,7 @@ export function connectHostBrowser(connected: () => void, state: (value: HostBro
   request()
   return {
     open(tabId: string, url: string) { port?.postMessage({ type: 'open', tabId, url }) },
-    control(tabId: string, action: BrowserAction, muted?: boolean, _dragOffset?: number, _presentation?: { title: string; icon?: string }) { if (action === 'mute' || action === 'detach' || action === 'reattach' || action === 'end-drag') return Promise.reject(new Error('此操作需要更新 Mira 并通过应用选择器打开工作台')); port?.postMessage({ type: 'control', tabId, action }); return Promise.resolve() },
+    control(tabId: string, action: BrowserAction, muted?: boolean, _dragOffset?: number, _presentation?: { title?: string; icon?: string }) { if (action === 'mute' || action === 'detach' || action === 'reattach' || action === 'end-drag' || action === 'presentation') return Promise.reject(new Error('此操作需要更新 Mira 并通过应用选择器打开工作台')); port?.postMessage({ type: 'control', tabId, action }); return Promise.resolve() },
     overlay(_open: boolean) { return Promise.resolve() },
     layout(tabId: string, element: HTMLElement | undefined, visible: boolean) {
       const bounds = element?.getBoundingClientRect()

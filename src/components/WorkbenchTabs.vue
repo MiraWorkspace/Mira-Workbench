@@ -4,7 +4,7 @@
       <button class="tab tab--home" :class="{ 'is-active': activeTab === 'home' }" type="button" @click="$emit('activate', 'home')"><img class="workbench-tab-logo" :src="logoUrl" alt="" /><span>工作台</span></button>
       <div ref="scrollingTabs" class="tabs-scroll" :class="{ 'tabs--dragging': draggingId }" @pointermove="moveDrag" @pointerup="endDrag" @pointercancel="endDrag" @lostpointercapture="endDrag">
        <TransitionGroup name="tab" tag="div" class="tabs-list">
-        <button v-for="tab in tabs" :key="tab.id" class="tab tab--site" :class="{ 'is-active': activeTab === tab.id, 'is-pinned': tab.pinned, 'is-dragging': draggingId === tab.id, 'is-returning': tab.returning }" type="button" :title="draggingId ? undefined : tab.name" :data-tab-id="tab.id" :style="draggingId === tab.id ? { translate: `${dragOffset}px 0` } : undefined" @click="activateTab(tab.id, $event)" @contextmenu.prevent.stop="openContextMenu($event, tab.id)" @pointerdown="startDrag(tab.id, $event)" @dragstart.prevent>
+        <button v-for="tab in tabs" :key="tab.id" class="tab tab--site" :class="{ 'is-active': activeTab === tab.id, 'is-pinned': tab.pinned, 'is-dragging': draggingId === tab.id, 'is-returning': tab.returning }" type="button" :data-tooltip="draggingId ? undefined : tab.name" :data-tab-id="tab.id" :style="draggingId === tab.id ? { translate: `${dragOffset}px 0` } : undefined" @click="activateTab(tab.id, $event)" @contextmenu.prevent.stop="openContextMenu($event, tab.id)" @pointerdown="startDrag(tab.id, $event)" @dragstart.prevent>
           <LoaderCircle v-if="tab.kind === 'website' && tab.loading" class="tab-loading-indicator" :size="17" /><BrandMark v-else-if="tab.kind === 'website'" :brand="tab.brand" :name="tab.name" :url="tab.url || ''" :favicon="tab.favicon" :custom-icon="tab.customIcon" :cached-icon="tab.cachedIcon" /><span v-else class="miniapp-tab-icon"><img v-if="tab.icon" :src="tab.icon" alt="" /><Package v-else :size="16" /></span>
           <Pin v-if="tab.pinned" class="tab-pin" :size="11" aria-label="已固定" /><span class="tab-label">{{ tab.name }}</span><VolumeX v-if="tab.muted" class="tab-muted" :size="13" aria-label="已静音" /><span class="tab-close" role="button" tabindex="0" :aria-label="`关闭 ${tab.name}`" @click.stop="$emit('close', tab.id)" @pointerdown.stop @keydown.enter.stop.prevent="$emit('close', tab.id)" @keydown.space.stop.prevent="$emit('close', tab.id)"><X :size="13" /></span>
         </button>
@@ -12,7 +12,7 @@
       </div>
     </nav>
     <div class="topbar-actions"><button class="icon-button" type="button" aria-label="添加" data-tooltip="添加" @click="$emit('add')"><Plus :size="17" /></button><button class="icon-button" type="button" aria-label="设置" @click="$emit('manage')"><Menu :size="21" /></button></div>
-    <div v-if="contextMenu" ref="contextMenuElement" class="tab-context-menu" role="menu" tabindex="-1" :style="{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }" @contextmenu.prevent @keydown="navigateMenu">
+    <FloatingTransition><div v-if="contextMenu" ref="contextMenuElement" class="tab-context-menu" role="menu" tabindex="-1" :style="{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }" @contextmenu.prevent @keydown="navigateMenu">
       <button type="button" role="menuitem" @click="runAction('reload')"><RefreshCw :size="14" />重新加载</button>
       <button type="button" role="menuitem" @click="runAction('duplicate')"><Copy :size="14" />复制</button>
       <button type="button" role="menuitem" @click="runAction('pin')"><Pin v-if="!contextTab?.pinned" :size="14" /><PinOff v-else :size="14" />{{ contextTab?.pinned ? '取消固定' : '固定' }}</button>
@@ -21,7 +21,7 @@
       <button type="button" role="menuitem" @click="runAction('close')"><X :size="14" />关闭</button>
       <button type="button" role="menuitem" @click="runAction('close-others')"><PanelsTopLeft :size="14" />关闭其他</button>
       <button type="button" role="menuitem" @click="runAction('close-right')"><ArrowRightToLine :size="14" />关闭右侧</button>
-    </div>
+    </div></FloatingTransition>
   </header>
 </template>
 
@@ -29,6 +29,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ArrowRightToLine, Copy, LoaderCircle, Menu, Package, PanelsTopLeft, Pin, PinOff, Plus, RefreshCw, Volume2, VolumeX, X } from 'lucide-vue-next'
 import BrandMark from './BrandMark.vue'
+import FloatingTransition from './FloatingTransition.vue'
 import type { WorkbenchTabView } from '../types'
 
 const props = defineProps<{ activeTab: string; tabs: WorkbenchTabView[]; logoUrl: string }>()

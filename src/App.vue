@@ -1,6 +1,6 @@
 <template>
   <main class="workbench" :class="{ 'workbench--browser': activeTab !== 'home' }">
-    <div v-if="storageLoading || storageError" class="dialog-backdrop"><section class="site-dialog" role="alertdialog" aria-modal="true"><h2>{{ storageLoading ? '正在加载工作台' : '工作台数据不可用' }}</h2><p v-if="storageError">{{ storageError }}</p><div v-if="storageError" class="dialog-actions"><button class="add-button" type="button" @click="retryStorage">重试</button></div></section></div>
+    <FloatingTransition kind="dialog"><div v-if="storageLoading || storageError" class="dialog-backdrop"><section class="site-dialog" role="alertdialog" aria-modal="true"><h2>{{ storageLoading ? '正在加载工作台' : '工作台数据不可用' }}</h2><p v-if="storageError">{{ storageError }}</p><div v-if="storageError" class="dialog-actions"><button class="add-button" type="button" @click="retryStorage">重试</button></div></section></div></FloatingTransition>
     <WorkbenchTabs :active-tab="activeTab" :tabs="workspaceTabs" :logo-url="logoUrl" @activate="id => id === 'home' ? activeTab = 'home' : activateWorkspaceTab(id)" @close="closeWorkspaceTab" @reorder="reorderWorkspaceTabs" @action="handleTabAction" @detach="detachWorkspaceTab" @detached-drag-end="endDetachedDrag" @menu="setTabMenuOpen" @add="openAdd" @manage="manageOpen = true" />
 
     <WorkbenchHome v-show="activeTab === 'home'" :entries="gridEntries" :opening-miniapp="openingMiniapp" :error="miniappError" :notice="miniappNotice" @open="entry => entry.type === 'website' ? openSite(entry.item) : openMiniapp(entry.item)" @hide="hideEntry" @pin="togglePin" @edit="editEntry" @delete="deleteEntry" @add="openAdd" />
@@ -18,13 +18,14 @@
     </section>
     <section v-if="miniappTabs.length" v-show="Boolean(currentMiniapp)" ref="miniappStage" class="browser-view" />
 
-    <SiteDialog v-if="siteDialog" :site="editingSite" :sites="sites" :load-icon="loadSiteIcon" :is-platform-app="isPlatformApp" :managing-miniapp="managingMiniapp" :miniapp-error="miniappError" :miniapp-notice="miniappNotice" @close="closeSiteDialog" @save="saveSite" @delete="deleteSite" @select-miniapp="selectMiniapp" />
+    <FloatingTransition kind="dialog"><SiteDialog v-if="siteDialog" :site="editingSite" :sites="sites" :load-icon="loadSiteIcon" :is-platform-app="isPlatformApp" :managing-miniapp="managingMiniapp" :miniapp-error="miniappError" :miniapp-notice="miniappNotice" @close="closeSiteDialog" @save="saveSite" @delete="deleteSite" @select-miniapp="selectMiniapp" /></FloatingTransition>
 
-    <div v-if="editingMiniapp" class="dialog-backdrop dialog-backdrop--floating" @click.self="editingMiniapp = ''" @keydown.esc.stop="editingMiniapp = ''"><section class="site-dialog" role="dialog" aria-modal="true" aria-labelledby="edit-miniapp-title"><div class="dialog-heading"><h2 id="edit-miniapp-title">编辑小程序</h2><button class="icon-button" type="button" aria-label="关闭" @click="editingMiniapp = ''"><X :size="17" /></button></div><form @submit.prevent="saveMiniappName"><label><span>显示名称</span><input v-model.trim="miniappName" maxlength="40" required /></label><div class="dialog-actions"><span class="dialog-spacer"></span><button class="cancel-button" type="button" @click="editingMiniapp = ''">取消</button><button class="add-button" type="submit" :disabled="!miniappName">保存</button></div></form></section></div>
-    <ManageDialog v-if="manageOpen" :sites="sites" :miniapps="miniapps" :entries="otherEntries" :busy="managingMiniapp" :error="miniappError" @close="manageOpen = false" @edit="site => { manageOpen = false; editSite(site) }" @site-visible="(site, visible) => site.visible = visible" @permissions="openPermissions" @revoke="item => manageMiniapp(item, 'revoke')" @uninstall="item => manageMiniapp(item, 'uninstall')" @miniapp-visible="setMiniappVisible" @restore="restoreDefaults" @done="saveSites(); manageOpen = false" />
+    <FloatingTransition kind="dialog"><div v-if="editingMiniapp" class="dialog-backdrop dialog-backdrop--floating" @click.self="editingMiniapp = ''" @keydown.esc.stop="editingMiniapp = ''"><section class="site-dialog" role="dialog" aria-modal="true" aria-labelledby="edit-miniapp-title"><div class="dialog-heading"><h2 id="edit-miniapp-title">编辑小程序</h2><button class="icon-button" type="button" aria-label="关闭" @click="editingMiniapp = ''"><X :size="17" /></button></div><form @submit.prevent="saveMiniappName"><label><span>显示名称</span><input v-model.trim="miniappName" maxlength="40" required /></label><div class="dialog-actions"><span class="dialog-spacer"></span><button class="cancel-button" type="button" @click="editingMiniapp = ''">取消</button><button class="add-button" type="submit" :disabled="!miniappName">保存</button></div></form></section></div></FloatingTransition>
+    <FloatingTransition kind="dialog"><ManageDialog v-if="manageOpen" :sites="sites" :miniapps="miniapps" :entries="otherEntries" :busy="managingMiniapp" :error="miniappError" @close="manageOpen = false" @edit="site => { manageOpen = false; editSite(site) }" @site-visible="(site, visible) => site.visible = visible" @permissions="openPermissions" @revoke="item => manageMiniapp(item, 'revoke')" @uninstall="item => manageMiniapp(item, 'uninstall')" @miniapp-visible="setMiniappVisible" @restore="restoreDefaults" @done="saveSites(); manageOpen = false" /></FloatingTransition>
 
-    <PermissionsDialog v-if="permissionItem" v-model:draft="permissionDraft" :item="permissionItem" :busy="managingMiniapp" :error="miniappError" @close="permissionsId = ''" @save="savePermissions" @revoke="manageMiniapp(permissionItem, 'revoke')" @remove-directory="id => miniappAction(() => miniappManager!.removeDirectory(permissionsId, id))" @add-directory="access => miniappAction(() => miniappManager!.addDirectory(permissionsId, access))" />
-    <PermissionReviewDialog v-if="permissionReview" :review="permissionReview" @finish="finishReview" />
+    <FloatingTransition kind="dialog"><PermissionsDialog v-if="permissionItem" v-model:draft="permissionDraft" :item="permissionItem" :busy="managingMiniapp" :error="miniappError" @close="permissionsId = ''" @save="savePermissions" @revoke="manageMiniapp(permissionItem, 'revoke')" @remove-directory="id => miniappAction(() => miniappManager!.removeDirectory(permissionsId, id))" @add-directory="access => miniappAction(() => miniappManager!.addDirectory(permissionsId, access))" /></FloatingTransition>
+    <FloatingTransition kind="dialog"><PermissionReviewDialog v-if="permissionReview" :review="permissionReview" @finish="finishReview" /></FloatingTransition>
+    <WorkbenchTooltip />
   </main>
 </template>
 
@@ -32,6 +33,9 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ExternalLink, TriangleAlert, X } from 'lucide-vue-next'
 import WorkbenchHome from './components/WorkbenchHome.vue'
+import FloatingTransition from './components/FloatingTransition.vue'
+import WorkbenchTooltip from './components/WorkbenchTooltip.vue'
+import { floatingLayerCount } from './floatingLayers'
 import WorkbenchTabs from './components/WorkbenchTabs.vue'
 import ManageDialog from './components/ManageDialog.vue'
 import BrowserToolbar from './components/BrowserToolbar.vue'
@@ -42,6 +46,7 @@ import { useBrowserTabs } from './composables/useBrowserTabs'
 import type { GridEntry, WorkbenchTabView } from './types'
 import { builtinSites, readSites, sitesStorageKey, type WebsiteEntry } from './data/sites'
 import { connectHostBrowser, connectPlatformBrowser } from './hostBrowser'
+import { siteIconUrl } from './siteIcon'
 import { WorkbenchStore, type WorkbenchEntry } from './data/workbenchStore'
 import { MiniappManager, type InstalledMiniapp, type ReviewRequest } from './miniapps/manager'
 import type { MiniappCapability } from './miniapps/package'
@@ -106,6 +111,13 @@ const workspaceTabs = computed(() => {
 })
 const currentMiniapp = computed(() => miniappTabs.value.find(tab => tab.id === activeTab.value))
 const editingSite = computed(() => sites.value.find(site => site.id === editingId.value))
+const overlayOpen = computed(() => Boolean(floatingLayerCount.value || tabMenuOpen.value || siteDialog.value || manageOpen.value || editingMiniapp.value || permissionReview.value || permissionsId.value))
+watch([overlayOpen, hostBrowserReady], ([open]) => { void syncOverlay(open) }, { flush: 'post' })
+watch(() => browserTabs.value.filter(tab => tab.detached).map(tab => ({ id: tab.id, icon: detachedIcon(siteIconUrl({ brand: tab.brand, customIcon: tab.iconUrl, cachedIcon: tab.cachedIcon, favicon: tab.faviconUrl })) })), (tabs, previous) => {
+  for (const tab of tabs) if (tab.icon !== previous.find(item => item.id === tab.id)?.icon) {
+    void hostBrowser?.control(tab.id, 'presentation', undefined, undefined, { icon: tab.icon }).catch(error => { externalError.value = String(error) })
+  }
+})
 const attemptedIcons = new Set<string>()
 watch([() => browserTabs.value.map(tab => tab.id), () => miniappTabs.value.map(tab => tab.id)], ([websites, miniapps]) => {
   const ids = [...websites, ...miniapps]
@@ -113,7 +125,7 @@ watch([() => browserTabs.value.map(tab => tab.id), () => miniappTabs.value.map(t
 }, { immediate: true })
 watch(sites, () => { if (initialized || !isPlatformApp) saveSites() }, { deep: true, flush: 'sync' })
 watch(sites, () => { if (initialized || !isPlatformApp) cacheSiteIcons() }, { deep: true })
-watch([activeTab, siteDialog, manageOpen, loadError, hostBrowserReady, storageError, storageLoading, permissionReview, permissionsId], () => { void nextTick(() => { syncHostBrowserLayout(); syncMiniappLayout() }) })
+watch([activeTab, loadError, hostBrowserReady, storageError, storageLoading], () => { void nextTick(() => { syncHostBrowserLayout(); syncMiniappLayout() }) })
 watch(miniappStage, (element, previous) => { if (previous) browserResize?.unobserve(previous); if (element) browserResize?.observe(element); syncMiniappLayout() })
 watch(webContent, (element, previous) => { if (previous) browserResize?.unobserve(previous); if (element) browserResize?.observe(element); syncHostBrowserLayout() })
 function siteToEntry(site: WebsiteEntry): WorkbenchEntry { return { id: site.id, type: 'website', name: site.name, address: site.url, icon: site.iconUrl || site.brand, cachedIcon: site.cachedIcon, category: site.category, builtin: site.builtin, visible: site.visible, pinned: site.pinned } }
@@ -326,11 +338,11 @@ async function handleTabAction(action: 'reload' | 'duplicate' | 'pin' | 'mute' |
   for (const tabId of ids) closeWorkspaceTab(tabId)
   activateWorkspaceTab(id)
 }
+function detachedIcon(icon?: string) { return icon ? new URL(icon, document.baseURI).href : undefined }
 let pendingDetach: Promise<unknown> | undefined
 function detachWorkspaceTab(id: string, grabX: number) {
   const item = workspaceTabs.value.find(tab => tab.id === id)
-  const icon = [...document.querySelectorAll<HTMLElement>('.tab--site')].find(tab => tab.dataset.tabId === id)?.querySelector<HTMLImageElement>('img')
-  const presentation = { title: item?.name || '无标题', icon: icon?.currentSrc || icon?.src }
+  const presentation = { title: item?.name || '无标题', icon: detachedIcon(item?.kind === 'website' ? siteIconUrl(item) : item?.icon) }
 
   if (id.startsWith('miniapp:')) {
     const tab = miniappTabs.value.find(item => item.id === id)
@@ -373,7 +385,7 @@ async function openMiniapp(item: InstalledMiniapp, duplicate = false) {
 function syncMiniappLayout() {
   if (!sdk) return
   const bounds = miniappStage.value?.getBoundingClientRect()
-  for (const tab of miniappTabs.value) void sdk.views.control({ type: 'layout', id: tab.viewId, visible: !tab.detached && tab.id === activeTab.value && !siteDialog.value && !manageOpen.value && !storageError.value && !storageLoading.value && !permissionReview.value && !permissionsId.value && Boolean(bounds?.width && bounds.height), bounds: bounds ? { x: Math.max(0, bounds.x), y: Math.max(0, bounds.y), width: bounds.width, height: bounds.height } : { x: 0, y: 0, width: 0, height: 0 } }).catch(() => undefined)
+  for (const tab of miniappTabs.value) void sdk.views.control({ type: 'layout', id: tab.viewId, visible: !tab.detached && tab.id === activeTab.value && !storageError.value && !storageLoading.value && Boolean(bounds?.width && bounds.height), bounds: bounds ? { x: Math.max(0, bounds.x), y: Math.max(0, bounds.y), width: bounds.width, height: bounds.height } : { x: 0, y: 0, width: 0, height: 0 } }).catch(() => undefined)
 }
 function closeMiniapp(id: string) {
   const index = miniappTabs.value.findIndex(tab => tab.id === id)
@@ -402,16 +414,16 @@ function restoreDefaults() { sites.value = structuredClone(builtinSites) }
 function applyTheme(theme: unknown) {
   if (theme === 'light' || theme === 'dark') { document.documentElement.dataset.theme = theme; miniappManager?.themeChanged(theme) }
 }
-async function setTabMenuOpen(open: boolean) {
-  tabMenuOpen.value = open
+function setTabMenuOpen(open: boolean) { tabMenuOpen.value = open }
+async function syncOverlay(open: boolean) {
   if (!isPlatformApp) return
-  if (open) document.documentElement.classList.add('workbench-tab-menu-open')
+  if (open) document.documentElement.classList.add('workbench-overlay-open')
   try { await hostBrowser?.overlay(open) }
-  catch (error) { externalError.value = error instanceof Error ? error.message : '无法显示标签菜单，请重试' }
-  finally { if (!open && !tabMenuOpen.value) document.documentElement.classList.remove('workbench-tab-menu-open') }
+  catch (error) { externalError.value = error instanceof Error ? error.message : '无法显示弹窗，请重试' }
+  finally { if (!open && !overlayOpen.value) document.documentElement.classList.remove('workbench-overlay-open') }
 }
 function syncHostBrowserLayout() {
-  if (hostBrowserReady.value) hostBrowser?.layout(activeTab.value, webContent.value, Boolean(currentSite.value) && !siteDialog.value && !manageOpen.value && !loadError.value && !storageError.value && !storageLoading.value && !permissionReview.value && !permissionsId.value)
+  if (hostBrowserReady.value) hostBrowser?.layout(activeTab.value, webContent.value, Boolean(currentSite.value) && !loadError.value && !storageError.value && !storageLoading.value)
 }
 function handlePlatformMessage(event: MessageEvent) {
   if (event.source !== window.parent) return
@@ -468,7 +480,7 @@ onMounted(() => {
   if (!isPlatformApp) applyTheme(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
 })
 onUnmounted(() => {
-  document.documentElement.classList.remove('workbench-tab-menu-open')
+  document.documentElement.classList.remove('workbench-overlay-open')
   finishReview(false); themeUnsubscribe?.(); void miniappManager?.dispose().finally(() => sdk?.dispose())
   hostBrowser?.dispose(); browserResize?.disconnect(); window.clearTimeout(browserConnectTimer)
   window.removeEventListener('message', handlePlatformMessage)
