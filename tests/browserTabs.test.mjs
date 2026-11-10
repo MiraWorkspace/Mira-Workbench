@@ -3,15 +3,26 @@ import assert from 'node:assert/strict'
 import { createRenderer, ref } from 'vue'
 import { useBrowserTabs } from '../src/composables/useBrowserTabs.ts'
 
-function fixture() {
+function fixture(external = false) {
   const calls = [], activeTab = ref('home')
+  const sdk = { workbench: { browser: async request => { calls.push(['sdk', request]) } } }
   const host = { open: (...args) => calls.push(['open', ...args]), control: async (...args) => { calls.push(['control', ...args]) } }
   let tabs
   const renderer = createRenderer({ createComment: () => ({}), insert() {}, remove() {}, parentNode: () => null, nextSibling: () => null })
-  const app = renderer.createApp({ setup() { tabs = useBrowserTabs({ activeTab, hostBrowserReady: ref(true), getHostBrowser: () => host, getSdk: () => undefined, isElectron: false, isPlatformApp: true }); return () => null } })
+  const app = renderer.createApp({ setup() { tabs = useBrowserTabs({ activeTab, hostBrowserReady: ref(true), getHostBrowser: () => host, getSdk: () => sdk, openSitesExternally: () => external, isElectron: false, isPlatformApp: true }); return () => null } })
   app.mount({})
   return { tabs, calls, activeTab, dispose: () => app.unmount() }
 }
+
+test('opens a site externally without creating an internal tab when enabled', () => {
+  const { tabs, calls, activeTab, dispose } = fixture(true)
+  try {
+    tabs.openSite({ id: 'site', url: 'https://example.com/' })
+    assert.deepEqual(calls, [['sdk', { type: 'external', url: 'https://example.com/' }]])
+    assert.equal(tabs.browserTabs.value.length, 0)
+    assert.equal(activeTab.value, 'home')
+  } finally { dispose() }
+})
 
 test('releases a background page while retaining its tab and reopens its latest URL', () => {
   const { tabs, calls, activeTab, dispose } = fixture()

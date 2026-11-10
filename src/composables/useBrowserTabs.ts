@@ -7,7 +7,7 @@ import type { connectHostBrowser, HostBrowserState } from '../hostBrowser'
 
 type BrowserWebview = HTMLElement & { reload: () => void; stop: () => void; setAudioMuted: (muted: boolean) => void; getTitle: () => string; canGoBack: () => boolean; canGoForward: () => boolean; goBack: () => void; goForward: () => void }
 
-export function useBrowserTabs(options: { activeTab: Ref<string>; hostBrowserReady: Ref<boolean>; getHostBrowser: () => ReturnType<typeof connectHostBrowser> | undefined; getSdk: () => MiraAppSdk | undefined; isElectron: boolean; isPlatformApp: boolean }) {
+export function useBrowserTabs(options: { activeTab: Ref<string>; hostBrowserReady: Ref<boolean>; getHostBrowser: () => ReturnType<typeof connectHostBrowser> | undefined; getSdk: () => MiraAppSdk | undefined; openSitesExternally?: () => boolean; isElectron: boolean; isPlatformApp: boolean }) {
   const { activeTab, hostBrowserReady, isElectron, isPlatformApp } = options
   const browserTabs = ref<BrowserTab[]>([])
   const residentBrowserTabs = computed(() => browserTabs.value.filter(tab => !tab.suspended))
@@ -25,6 +25,13 @@ export function useBrowserTabs(options: { activeTab: Ref<string>; hostBrowserRea
   if (!addressEditing.value) { addressDraft.value = url; browserToolbar.value?.resetValidity() }
 })
 function openSite(site: WebsiteEntry) {
+  if (options.openSitesExternally?.()) {
+    externalError.value = ''
+    const sdk = options.getSdk()
+    if (isPlatformApp && sdk) void (sdk.workbench.browser as unknown as (request: { type: 'external'; url: string }) => Promise<void>)({ type: 'external', url: site.url }).catch(() => { externalError.value = '无法打开系统浏览器，请检查默认浏览器设置或更新 Mira。' })
+    else window.open(site.url, '_blank', 'noopener,noreferrer')
+    return
+  }
   const tab = browserTabs.value.find(item => (item.sourceId || item.id) === site.id)
   if (tab) { activateTab(tab.id); return }
   openBrowserTab(site.url, site)
