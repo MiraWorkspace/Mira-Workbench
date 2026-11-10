@@ -143,9 +143,14 @@ h1, h2, p { margin-top: 0; }
 .required-mark { color: #a54d4b; }
 .miniapp-info { display: flex; align-items: center; gap: 10px; margin: 0 0 16px; padding: 16px; border-radius: 8px; background: var(--surface-muted); color: var(--text); font-size: 13px; line-height: 1.6; }
 .miniapp-info svg { flex-shrink: 0; color: var(--text-muted); }
+.miniapp-docs { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; padding: 0; border: 0; background: transparent; color: var(--accent); font-size: 12px; white-space: nowrap; }
+.miniapp-docs svg { color: inherit; }
 .miniapp-upload { display: flex; flex-direction: column; align-items: center; padding: 24px 20px; border: 1px dashed var(--line); border-radius: 8px; text-align: center; }
 .miniapp-upload p { margin: 0 0 16px; color: #68736c; font-size: 12px; line-height: 1.8; }
 .miniapp-upload .miniapp-unavailable { margin: 14px 0 0; }
+.miniapp-url { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; color: var(--text); font-size: 12px; }
+.miniapp-coming-soon { color: var(--text-muted); }
+.miniapp-url input:disabled { opacity: .7; cursor: not-allowed; }
 .miniapp-notice { margin: 16px 0 0; color: var(--accent); font-size: 12px; line-height: 1.6; }
 .add-dialog #add-miniapp-panel > .form-error { margin-top: 16px; }
 .add-dialog button:disabled { opacity: .5; cursor: default; transform: none; }

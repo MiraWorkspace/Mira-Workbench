@@ -3,7 +3,7 @@
     <FloatingTransition kind="dialog"><div v-if="storageLoading || storageError" class="dialog-backdrop"><section class="site-dialog" role="alertdialog" aria-modal="true"><h2>{{ storageLoading ? '正在加载工作台' : '工作台数据不可用' }}</h2><p v-if="storageError">{{ storageError }}</p><div v-if="storageError" class="dialog-actions"><button class="add-button" type="button" @click="retryStorage">重试</button></div></section></div></FloatingTransition>
     <WorkbenchTabs :active-tab="activeTab" :tabs="workspaceTabs" :logo-url="logoUrl" @activate="activateWorkspaceTab" @new-tab="addHomeTab" @close="closeWorkspaceTab" @reorder="reorderWorkspaceTabs" @action="handleTabAction" @detach="detachWorkspaceTab" @detached-drag-end="endDetachedDrag" @menu="setTabMenuOpen" @add="openAdd" @manage="manageOpen = true" />
 
-    <WorkbenchHome v-show="Boolean(currentHome)" v-model:query="homeQuery" :entries="gridEntries" :opening-miniapp="openingMiniapp" :error="miniappError" :notice="miniappNotice" @open="entry => entry.type === 'website' ? openSite(entry.item) : openMiniapp(entry.item)" @hide="hideEntry" @pin="togglePin" @edit="editEntry" @delete="deleteEntry" @add="openAdd" @manage="manageOpen = true" />
+    <WorkbenchHome v-show="Boolean(currentHome)" v-model:query="homeQuery" :entries="gridEntries" :opening-miniapp="openingMiniapp" @open="entry => entry.type === 'website' ? openSite(entry.item) : openMiniapp(entry.item)" @hide="hideEntry" @pin="togglePin" @edit="editEntry" @delete="deleteEntry" @add="openAdd" @manage="manageOpen = true" />
 
     <p v-if="externalError" class="external-error" role="alert">{{ externalError }}<button class="text-button" type="button" @click="externalError = ''">关闭</button></p>
     <section v-if="browserTabs.length" v-show="Boolean(currentSite)" class="browser-view">
@@ -18,12 +18,12 @@
     </section>
     <section v-if="miniappTabs.length" v-show="Boolean(currentMiniapp)" ref="miniappStage" class="browser-view" />
 
-    <FloatingTransition kind="dialog"><SiteDialog v-if="siteDialog" :site="editingSite" :sites="sites" :load-icon="loadSiteIcon" :is-platform-app="isPlatformApp" :managing-miniapp="managingMiniapp" :miniapp-error="miniappError" :miniapp-notice="miniappNotice" @close="closeSiteDialog" @save="saveSite" @delete="deleteSite" @select-miniapp="selectMiniapp" /></FloatingTransition>
+    <FloatingTransition kind="dialog"><SiteDialog v-if="siteDialog" :site="editingSite" :sites="sites" :load-icon="loadSiteIcon" :is-platform-app="isPlatformApp" :managing-miniapp="managingMiniapp" @close="closeSiteDialog" @save="saveSite" @delete="deleteSite" @select-miniapp="selectMiniapp" /></FloatingTransition>
 
     <FloatingTransition kind="dialog"><div v-if="editingMiniapp" class="dialog-backdrop dialog-backdrop--floating" @click.self="editingMiniapp = ''" @keydown.esc.stop="editingMiniapp = ''"><section class="site-dialog" role="dialog" aria-modal="true" aria-labelledby="edit-miniapp-title"><div class="dialog-heading"><h2 id="edit-miniapp-title">编辑小程序</h2><button class="icon-button" type="button" aria-label="关闭" @click="editingMiniapp = ''"><X :size="17" /></button></div><form @submit.prevent="saveMiniappName"><label><span>显示名称</span><input v-model.trim="miniappName" maxlength="40" required /></label><div class="dialog-actions"><span class="dialog-spacer"></span><button class="cancel-button" type="button" @click="editingMiniapp = ''">取消</button><button class="add-button" type="submit" :disabled="!miniappName">保存</button></div></form></section></div></FloatingTransition>
-    <FloatingTransition kind="dialog"><ManageDialog v-if="manageOpen" :sites="sites" :miniapps="miniapps" :entries="otherEntries" :preferences="preferences" :busy="managingMiniapp" :error="miniappError" @preferences="updatePreferences" @close="manageOpen = false" @edit="site => { manageOpen = false; editSite(site) }" @site-visible="(site, visible) => site.visible = visible" @permissions="openPermissions" @revoke="item => manageMiniapp(item, 'revoke')" @uninstall="item => manageMiniapp(item, 'uninstall')" @miniapp-visible="setMiniappVisible" /></FloatingTransition>
+    <FloatingTransition kind="dialog"><ManageDialog v-if="manageOpen" :sites="sites" :miniapps="miniapps" :entries="otherEntries" :preferences="preferences" :busy="managingMiniapp" @preferences="updatePreferences" @close="manageOpen = false" @edit="site => { manageOpen = false; editSite(site) }" @site-visible="(site, visible) => site.visible = visible" @permissions="openPermissions" @revoke="item => manageMiniapp(item, 'revoke')" @uninstall="item => manageMiniapp(item, 'uninstall')" @miniapp-visible="setMiniappVisible" /></FloatingTransition>
 
-    <FloatingTransition kind="dialog"><PermissionsDialog v-if="permissionItem" v-model:draft="permissionDraft" :item="permissionItem" :busy="managingMiniapp" :error="miniappError" @close="permissionsId = ''" @save="savePermissions" @revoke="manageMiniapp(permissionItem, 'revoke')" @remove-directory="id => miniappAction(() => miniappManager!.removeDirectory(permissionsId, id))" @add-directory="access => miniappAction(() => miniappManager!.addDirectory(permissionsId, access))" /></FloatingTransition>
+    <FloatingTransition kind="dialog"><PermissionsDialog v-if="permissionItem" v-model:draft="permissionDraft" :item="permissionItem" :busy="managingMiniapp" @close="permissionsId = ''" @save="savePermissions" @revoke="manageMiniapp(permissionItem, 'revoke')" @remove-directory="id => miniappAction(() => miniappManager!.removeDirectory(permissionsId, id))" @add-directory="access => miniappAction(() => miniappManager!.addDirectory(permissionsId, access))" /></FloatingTransition>
     <FloatingTransition kind="dialog"><PermissionReviewDialog v-if="permissionReview" :review="permissionReview" @finish="finishReview" /></FloatingTransition>
     <WorkbenchTooltip />
   </main>
@@ -77,8 +77,6 @@ const miniapps = ref<InstalledMiniapp[]>([])
 const miniappTabs = ref<Array<{ id: string; name: string; appId: string; viewId: number; icon?: string; tabPinned?: boolean; muted?: boolean; detached?: boolean; returning?: boolean; suspended?: boolean; resuming?: boolean }>>([])
 const miniappStage = ref<HTMLElement>()
 const openingMiniapp = ref(false)
-const miniappError = ref('')
-const miniappNotice = ref('')
 const managingMiniapp = ref(false)
 const storageLoading = ref(isPlatformApp)
 const storageError = ref('')
@@ -224,7 +222,7 @@ async function initializeStorage() {
       })
     }
     try { await miniappManager.initialize() }
-    catch (error) { miniappError.value = `${error instanceof Error ? error.message : '读取小程序失败'}，请修复后重新加载 Workbench。` }
+    catch (error) { console.error('读取小程序失败', error) }
   } catch (error) { storageError.value = error instanceof Error ? error.message : '读取数据失败' }
   finally { storageLoading.value = false }
 }
@@ -260,20 +258,20 @@ function finishReview(approved: boolean) { permissionReview.value = undefined; r
 async function selectMiniapp(event: Event) {
   const input = event.target as HTMLInputElement, file = input.files?.[0]; input.value = ''
   if (!file || !miniappManager || managingMiniapp.value) return
-  managingMiniapp.value = true; miniappError.value = ''; miniappNotice.value = ''
+  managingMiniapp.value = true
   try {
     if (file.size > 64 * 1024 * 1024) throw new Error('安装包不能超过 64 MB')
-    if (await miniappManager.install(new Uint8Array(await file.arrayBuffer()))) miniappNotice.value = '小程序已安装或更新，可以立即打开。'
-  } catch (error) { miniappError.value = error instanceof Error ? error.message : '安装失败' }
+    if (await miniappManager.install(new Uint8Array(await file.arrayBuffer()))) closeSiteDialog()
+  } catch (error) { console.error('安装小程序失败', error) }
   finally { managingMiniapp.value = false }
 }
 async function manageMiniapp(item: InstalledMiniapp, action: 'uninstall' | 'revoke') {
   if (!miniappManager || managingMiniapp.value) return
-  managingMiniapp.value = true; miniappError.value = ''; miniappNotice.value = ''
+  managingMiniapp.value = true
   try {
-    if (action === 'uninstall') { if (await miniappManager.uninstall(item.id)) { miniappNotice.value = '小程序已卸载，独立数据已保留。'; if (permissionsId.value === item.id) permissionsId.value = '' } }
+    if (action === 'uninstall') { if (await miniappManager.uninstall(item.id) && permissionsId.value === item.id) permissionsId.value = '' }
     else { await miniappManager.revoke(item.id); permissionDraft.value = [] }
-  } catch (error) { miniappError.value = error instanceof Error ? error.message : '操作失败' }
+  } catch (error) { console.error('小程序操作失败', error) }
   finally { managingMiniapp.value = false }
 }
 function openPermissions(item: InstalledMiniapp) { permissionsId.value = item.id; permissionDraft.value = [...item.approved] }
@@ -283,8 +281,8 @@ async function savePermissions(permissions: MiniappCapability[]) {
 }
 async function miniappAction(action: () => Promise<unknown>) {
   if (managingMiniapp.value) return
-  managingMiniapp.value = true; miniappError.value = ''
-  try { await action() } catch (error) { miniappError.value = error instanceof Error ? error.message : '操作失败' }
+  managingMiniapp.value = true
+  try { await action() } catch (error) { console.error('小程序操作失败', error) }
   finally { managingMiniapp.value = false }
 }
 function miniappEntry(id: string) { return otherEntries.value.find(entry => entry.type === 'miniapp' && entry.address === id) }
@@ -421,7 +419,7 @@ async function openMiniapp(item: InstalledMiniapp, duplicate = false) {
   if (!miniappManager || openingMiniapp.value) return
   const existing = miniappTabs.value.find(tab => tab.appId === item.id)
   if (existing && !duplicate) { activateWorkspaceTab(existing.id); return }
-  openingMiniapp.value = true; miniappError.value = ''
+  openingMiniapp.value = true
   try {
     const viewId = await miniappManager.open(item.id, duplicate)
     if (viewId === undefined) return
@@ -429,7 +427,7 @@ async function openMiniapp(item: InstalledMiniapp, duplicate = false) {
     const tab = { id: duplicate ? `miniapp:${item.id}:${viewId}` : `miniapp:${item.id}`, appId: item.id, name: miniappEntry(item.id)?.name || item.name, icon: item.icon, viewId }
     miniappTabs.value.push(tab); activeTab.value = tab.id
     await nextTick(); syncMiniappLayout()
-  } catch (error) { miniappError.value = error instanceof Error ? error.message : '小程序打开失败' }
+  } catch (error) { console.error('打开小程序失败', error) }
   finally { openingMiniapp.value = false }
 }
 async function resumeMiniapp(tab: (typeof miniappTabs.value)[number]) {

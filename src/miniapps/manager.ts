@@ -107,7 +107,6 @@ export class MiniappManager {
   async uninstall(id: string) {
     return this.exclusive(async () => {
       const item = this.item(id)
-      if (!await this.review({ title: '卸载小程序', message: `卸载「${item.name}」？独立数据会保留。`, confirm: '卸载' })) return false
       await this.stop(id)
       const before = this.state.items; this.state.items = before.filter(item => item.id !== id)
       try { await this.persist() } catch (error) { this.state.items = before; throw error }

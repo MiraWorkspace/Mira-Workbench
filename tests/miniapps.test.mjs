@@ -57,6 +57,16 @@ test('failed update preserves the committed registry and working release', async
   f.failPath = ''; await f.manager.open('notes')
 })
 
+test('uninstalls without a confirmation while retaining independent data', async () => {
+  const f = fixture(); await f.manager.initialize(); await f.manager.install(pack())
+  const view = await f.manager.open('notes')
+  await f.request(view, 'files.write', { path: 'draft.txt', data: strToU8('retained') })
+  f.confirm = false
+  assert.equal(await f.manager.uninstall('notes'), true)
+  assert.equal(f.items.length, 0)
+  assert.ok(f.files.has('miniapps/data/notes/draft.txt'))
+})
+
 test('permission checks isolate files, reject forged methods and enforce read-only directories', async () => {
   const f = fixture(); await f.manager.initialize(); await f.manager.install(pack()); const view = await f.manager.open('notes')
   await f.request(view, 'files.read', { path: '../packages/notes/index.html' }); assert.equal(f.replies.at(-1).ok, false)

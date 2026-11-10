@@ -25,7 +25,6 @@
           <div class="manage-preference"><div><label id="external-label" for="external-switch">在默认浏览器中打开网站</label><p id="external-description">网站和网页中的新窗口链接使用系统默认浏览器打开</p></div><button id="external-switch" class="preference-switch" type="button" role="switch" :aria-checked="preferences.openNewWindowInBrowser" aria-labelledby="external-label" aria-describedby="external-description" @click="updatePreferences({ openNewWindowInBrowser: !preferences.openNewWindowInBrowser })"><span /></button></div>
           <div class="manage-preference manage-cache"><div><label for="tab-cache-count">标签缓存数量</label><p id="cache-description">保留最近使用的后台页面，超出后释放，再次切换时重新加载。0 表示不保留后台页面。</p></div><div class="manage-cache-control"><input id="tab-cache-count" type="range" min="0" max="10" step="1" :value="preferences.tabCacheCount" :style="{ '--cache-progress': `${preferences.tabCacheCount * 10}%` }" aria-describedby="cache-description" @input="updatePreferences({ tabCacheCount: Number(($event.target as HTMLInputElement).value) })" /><output for="tab-cache-count">{{ preferences.tabCacheCount }}</output></div></div>
         </section>
-        <p v-if="error" class="form-error" role="alert">{{ error }}</p>
       </div>
     </section>
   </div>
@@ -41,7 +40,7 @@ import type { WorkbenchPreferences } from '../data/preferences'
 import type { InstalledMiniapp } from '../miniapps/manager'
 
 type ManageItem = { type: 'website'; id: string; name: string; visible: boolean; site: WebsiteEntry } | { type: 'miniapp'; id: string; name: string; visible: boolean; miniapp: InstalledMiniapp }
-const props = defineProps<{ sites: WebsiteEntry[]; miniapps: InstalledMiniapp[]; entries: WorkbenchEntry[]; preferences: WorkbenchPreferences; busy: boolean; error: string }>()
+const props = defineProps<{ sites: WebsiteEntry[]; miniapps: InstalledMiniapp[]; entries: WorkbenchEntry[]; preferences: WorkbenchPreferences; busy: boolean }>()
 const emit = defineEmits<{ close: []; edit: [site: WebsiteEntry]; 'site-visible': [site: WebsiteEntry, visible: boolean]; permissions: [item: InstalledMiniapp]; revoke: [item: InstalledMiniapp]; uninstall: [item: InstalledMiniapp]; 'miniapp-visible': [id: string, visible: boolean]; preferences: [value: WorkbenchPreferences] }>()
 const items = computed<ManageItem[]>(() => [
   ...props.sites.map(site => ({ type: 'website' as const, id: site.id, name: site.name, visible: site.visible, site })),

@@ -18,10 +18,10 @@
         <div class="dialog-actions"><button v-if="site && !site.builtin" class="delete-button" type="button" @click="$emit('delete', site)">删除网站</button><span class="dialog-spacer"></span><button class="cancel-button" type="button" @click="$emit('close')">取消</button><button class="add-button" type="submit" :disabled="uploading || fetching || !form.name || !form.url"><Check :size="15" />保存</button></div>
       </form>
       <div v-if="addType === 'miniapp'" id="add-miniapp-panel" role="tabpanel" aria-labelledby="add-miniapp-tab">
-        <p class="miniapp-info"><Package :size="20" /><span>安装授权后可以调用本地能力</span></p>
+        <div class="miniapp-info"><Package :size="20" /><span>安装授权后可以调用本地能力</span><button class="miniapp-docs" type="button" disabled title="开发文档即将开放">开发文档 <ExternalLink :size="14" /></button></div>
         <input ref="miniappInput" class="logo-file-input" type="file" accept=".miniapp,.zip" aria-label="选择小程序安装包" @change="$emit('select-miniapp', $event)" /><div class="miniapp-upload"><p>选择一个 .miniapp 或 .zip 安装包，安装前会展示它申请的权限。</p><button class="cancel-button" type="button" :disabled="!isPlatformApp || managingMiniapp" @click="miniappInput?.click()"><Upload :size="15" />{{ managingMiniapp ? '正在安装…' : '选择文件…' }}</button><p v-if="!isPlatformApp" class="miniapp-unavailable">请在 Mira 桌面应用中安装小程序。</p></div>
-        <p v-if="miniappError" class="form-error" role="alert">{{ miniappError }}</p><p v-if="miniappNotice" class="miniapp-notice" role="status">{{ miniappNotice }}</p>
-        <div class="dialog-actions"><span class="dialog-spacer"></span><button class="cancel-button" type="button" @click="$emit('close')">{{ miniappNotice ? '完成' : '取消' }}</button></div>
+        <label class="miniapp-url"><span>或从网址安装 <span class="miniapp-coming-soon">（即将开放）</span></span><input type="url" placeholder="https://example.com/myapp/manifest.json" disabled /></label>
+        <div class="dialog-actions"><span class="dialog-spacer"></span><button class="cancel-button" type="button" @click="$emit('close')">取消</button></div>
       </div>
     </section>
   </div>
@@ -29,11 +29,11 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { Check, Globe, LoaderCircle, Package, Upload, X } from 'lucide-vue-next'
+import { Check, ExternalLink, Globe, LoaderCircle, Package, Upload, X } from 'lucide-vue-next'
 import BrandMark from './BrandMark.vue'
 import type { WebsiteEntry } from '../data/sites'
 
-const props = defineProps<{ site?: WebsiteEntry; sites: WebsiteEntry[]; loadIcon: (url: string) => Promise<string | undefined>; isPlatformApp: boolean; managingMiniapp: boolean; miniappError: string; miniappNotice: string }>()
+const props = defineProps<{ site?: WebsiteEntry; sites: WebsiteEntry[]; loadIcon: (url: string) => Promise<string | undefined>; isPlatformApp: boolean; managingMiniapp: boolean }>()
 const emit = defineEmits<{ close: []; save: [value: { name: string; url: string; iconUrl?: string; cachedIcon?: string }]; delete: [site: WebsiteEntry]; 'select-miniapp': [event: Event] }>()
 const dialog = ref<HTMLElement>(), logoInput = ref<HTMLInputElement>(), miniappInput = ref<HTMLInputElement>()
 const addType = ref<'website' | 'miniapp'>('website')

@@ -14,7 +14,6 @@
         <button type="button" role="menuitem" @click="action('pin')">{{ menu.entry.pinned ? '取消置顶' : '置顶' }}</button>
         <template v-if="!menu.entry.builtin"><button type="button" role="menuitem" @click="action('edit')">编辑</button><button class="entry-menu__delete" type="button" role="menuitem" @click="action('delete')">删除</button></template>
       </div></FloatingTransition>
-      <p v-if="error" role="alert">{{ error }}</p><p v-if="notice" role="status">{{ notice }}</p>
       <div v-if="!filteredEntries.length" class="empty-state"><span><Search :size="22" /></span><strong>没有找到匹配的网站或小程序</strong><p>试试其他名称，或添加你自己的网址。</p><button type="button" @click="$emit('add')"><Plus :size="15" />添加网站</button></div>
     </div>
   </section>
@@ -28,7 +27,7 @@ import WorkbenchActions from './WorkbenchActions.vue'
 import FloatingTransition from './FloatingTransition.vue'
 import type { GridEntry } from '../types'
 
-const props = defineProps<{ entries: GridEntry[]; openingMiniapp: boolean; error: string; notice: string }>()
+const props = defineProps<{ entries: GridEntry[]; openingMiniapp: boolean }>()
 const emit = defineEmits<{ open: [entry: GridEntry]; hide: [entry: GridEntry]; pin: [entry: GridEntry]; edit: [entry: GridEntry]; delete: [entry: GridEntry]; add: []; manage: [] }>()
 const query = defineModel<string>('query', { default: '' })
 const menu = ref<{ entry: GridEntry; x: number; y: number }>()
