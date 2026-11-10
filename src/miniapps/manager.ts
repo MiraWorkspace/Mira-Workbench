@@ -82,13 +82,13 @@ export class MiniappManager {
     return true
   }
   private item(id: string) { const item = this.state.items.find(item => item.id === id); if (!item) throw new Error('小程序未安装'); return item }
-  async open(id: string) {
-    return this.exclusive(() => this.openItem(id))
+  async open(id: string, duplicate = false) {
+    return this.exclusive(() => this.openItem(id, duplicate))
   }
-  private async openItem(id: string) {
+  private async openItem(id: string, duplicate: boolean) {
     const item = this.item(id)
     const existing = [...this.running].find(([, running]) => running === item)
-    if (existing) return existing[0]
+    if (existing && !duplicate) return existing[0]
     if (!item.reviewed) {
       if (!await this.review({ title: '小程序权限', message: item.name, permissions: item.manifest.requiredCapabilities.map(cap => capabilityLabels[cap]), confirm: '允许并打开' })) return
       const before = { approved: item.approved, reviewed: item.reviewed }
@@ -96,7 +96,8 @@ export class MiniappManager {
       try { await this.persist() } catch (error) { Object.assign(item, before); throw error }
       this.publish()
     }
-    const idValue = await this.sdk.views.control({ type: 'open', key: item.id, directory: item.release, entry: item.manifest.entry })
+    const key = duplicate ? `${item.id.slice(0, 27)}-${crypto.randomUUID()}` : item.id
+    const idValue = await this.sdk.views.control({ type: 'open', key, directory: item.release, entry: item.manifest.entry })
     if (typeof idValue !== 'number') throw new Error('小程序视图创建失败')
     if (this.item(id) !== item || !item.reviewed) { await this.sdk.views.control({ type: 'close', id: idValue }); throw new Error('小程序已变化') }
     this.running.set(idValue, item); return idValue

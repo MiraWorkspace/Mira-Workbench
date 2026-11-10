@@ -1,7 +1,7 @@
 <template>
   <div class="dialog-backdrop dialog-backdrop--floating" @click.self="$emit('close')" @keydown.esc.stop="$emit('close')">
     <section ref="dialog" class="site-dialog add-dialog" role="dialog" aria-modal="true" aria-labelledby="site-dialog-title" tabindex="-1" @keydown.tab="trapFocus">
-      <div class="dialog-heading"><h2 id="site-dialog-title">{{ site ? '编辑网站' : '新增' }}</h2><button class="icon-button" type="button" aria-label="关闭" @click="$emit('close')"><X :size="17" /></button></div>
+      <div class="dialog-heading"><h2 id="site-dialog-title">{{ site ? '编辑网站' : '添加' }}</h2><button class="icon-button" type="button" aria-label="关闭" @click="$emit('close')"><X :size="17" /></button></div>
       <div v-if="!site" class="add-tabs" role="tablist" aria-label="新增类型">
         <button id="add-website-tab" type="button" role="tab" :aria-selected="addType === 'website'" aria-controls="add-website-panel" :tabindex="addType === 'website' ? 0 : -1" @click="addType = 'website'" @keydown.right.prevent="selectAddType('miniapp')" @keydown.left.prevent="selectAddType('miniapp')"><Globe :size="17" />网站</button>
         <button id="add-miniapp-tab" type="button" role="tab" :aria-selected="addType === 'miniapp'" aria-controls="add-miniapp-panel" :tabindex="addType === 'miniapp' ? 0 : -1" @click="addType = 'miniapp'" @keydown.right.prevent="selectAddType('website')" @keydown.left.prevent="selectAddType('website')"><Package :size="17" />小程序</button>

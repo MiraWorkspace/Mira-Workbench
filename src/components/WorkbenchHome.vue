@@ -4,7 +4,7 @@
       <div class="search-row"><label class="search-box"><Search :size="18" /><input v-model="query" aria-label="搜索网站" placeholder="搜索" /><button v-if="query" type="button" aria-label="清除搜索" @click="query = ''"><X :size="15" /></button></label></div>
       <div v-if="filteredEntries.length" class="site-grid">
         <button v-for="entry in filteredEntries" :key="`${entry.type}:${entry.item.id}`" class="site-card" type="button" :aria-disabled="entry.type === 'miniapp' && (!entry.item.enabled || openingMiniapp)" @click="open(entry)" @contextmenu.prevent="openMenu($event, entry)">
-          <span class="site-icon"><BrandMark v-if="entry.type === 'website'" :brand="entry.item.brand" :name="entry.item.name" :url="entry.item.url" :custom-icon="entry.item.iconUrl" :cached-icon="entry.item.cachedIcon" /><template v-else><img v-if="entry.item.icon" :src="entry.item.icon" alt="" width="40" height="40" @error="entry.item.icon = undefined" /><span v-else>{{ entry.name.slice(0, 1) }}</span></template></span>
+          <span class="site-icon"><BrandMark v-if="entry.type === 'website'" :brand="entry.item.brand" :name="entry.item.name" :url="entry.item.url" :custom-icon="entry.item.iconUrl" :cached-icon="entry.item.cachedIcon" /><template v-else><img v-if="entry.item.icon" :src="entry.item.icon" alt="" width="40" height="40" @error="entry.item.icon = undefined" /><span v-else>{{ entry.name.slice(0, 1) }}</span></template><span v-if="entry.opened" class="site-open-indicator" aria-hidden="true" /></span>
           <span class="site-card__name"><Pin v-if="entry.pinned" :size="12" aria-label="已置顶" /><span>{{ entry.name }}</span></span>
         </button>
       </div>

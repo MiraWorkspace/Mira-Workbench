@@ -1,13 +1,13 @@
 <template>
   <main class="workbench" :class="{ 'workbench--browser': activeTab !== 'home' }">
     <div v-if="storageLoading || storageError" class="dialog-backdrop"><section class="site-dialog" role="alertdialog" aria-modal="true"><h2>{{ storageLoading ? '正在加载工作台' : '工作台数据不可用' }}</h2><p v-if="storageError">{{ storageError }}</p><div v-if="storageError" class="dialog-actions"><button class="add-button" type="button" @click="retryStorage">重试</button></div></section></div>
-    <WorkbenchTabs :active-tab="activeTab" :browser-tabs="browserTabs" :miniapp-tabs="miniappTabs" :logo-url="logoUrl" @activate="id => id === 'home' ? activeTab = 'home' : activateTab(id)" @close-site="closeTab" @close-miniapp="closeMiniapp" @add="openAdd" @manage="manageOpen = true" />
+    <WorkbenchTabs :active-tab="activeTab" :tabs="workspaceTabs" :logo-url="logoUrl" @activate="id => id === 'home' ? activeTab = 'home' : activateWorkspaceTab(id)" @close="closeWorkspaceTab" @reorder="reorderWorkspaceTabs" @action="handleTabAction" @detach="detachWorkspaceTab" @detached-drag-end="endDetachedDrag" @menu="setTabMenuOpen" @add="openAdd" @manage="manageOpen = true" />
 
     <WorkbenchHome v-show="activeTab === 'home'" :entries="gridEntries" :opening-miniapp="openingMiniapp" :error="miniappError" :notice="miniappNotice" @open="entry => entry.type === 'website' ? openSite(entry.item) : openMiniapp(entry.item)" @hide="hideEntry" @pin="togglePin" @edit="editEntry" @delete="deleteEntry" @add="openAdd" />
 
+    <p v-if="externalError" class="external-error" role="alert">{{ externalError }}<button class="text-button" type="button" @click="externalError = ''">关闭</button></p>
     <section v-if="browserTabs.length" v-show="Boolean(currentSite)" class="browser-view">
       <BrowserToolbar ref="browserToolbar" v-model:address="addressDraft" :loading="pageLoading" :can-go-back="currentSite?.canGoBack ?? false" :can-go-forward="currentSite?.canGoForward ?? false" @editing="addressEditing = $event" @navigate="navigateAddress" @reset="addressDraft = currentAddress; browserToolbar?.resetValidity()" @back="goBack" @forward="goForward" @stop="stopFrame" @reload="reloadFrame" @external="openExternal" />
-      <p v-if="externalError" class="external-error" role="alert">{{ externalError }}</p>
       <div ref="webContent" class="web-content">
         <template v-if="isElectron">
           <webview v-for="tab in browserTabs" :key="tab.id" :ref="webviewRef(tab.id)" v-show="activeTab === tab.id" class="site-webview" :src="tab.currentUrl" partition="persist:mira-workbench" webpreferences="contextIsolation=yes,nodeIntegration=no,sandbox=yes,webSecurity=yes" allowpopups @did-start-loading="handleLoadStart(tab.id)" @did-stop-loading="handleLoadFinished(tab.id)" @did-navigate="handleNavigate(tab.id, $event)" @did-navigate-in-page="handleNavigate(tab.id, $event)" @page-title-updated="handleTitleUpdate(tab.id, $event)" @page-favicon-updated="handleFaviconUpdate(tab.id, $event)" @did-fail-load="handleLoadError(tab.id, $event)" @will-navigate="handleWillNavigate(tab.id, $event)" />
@@ -39,7 +39,7 @@ import SiteDialog from './components/SiteDialog.vue'
 import PermissionsDialog from './components/PermissionsDialog.vue'
 import PermissionReviewDialog from './components/PermissionReviewDialog.vue'
 import { useBrowserTabs } from './composables/useBrowserTabs'
-import type { GridEntry } from './types'
+import type { GridEntry, WorkbenchTabView } from './types'
 import { builtinSites, readSites, sitesStorageKey, type WebsiteEntry } from './data/sites'
 import { connectHostBrowser, connectPlatformBrowser } from './hostBrowser'
 import { WorkbenchStore, type WorkbenchEntry } from './data/workbenchStore'
@@ -64,7 +64,7 @@ const permissionsId = ref('')
 const permissionDraft = ref<MiniappCapability[]>([])
 const permissionItem = computed(() => miniapps.value.find(item => item.id === permissionsId.value))
 const miniapps = ref<InstalledMiniapp[]>([])
-const miniappTabs = ref<Array<{ id: string; name: string; viewId: number }>>([])
+const miniappTabs = ref<Array<{ id: string; name: string; appId: string; viewId: number; icon?: string; tabPinned?: boolean; muted?: boolean; detached?: boolean; returning?: boolean }>>([])
 const miniappStage = ref<HTMLElement>()
 const openingMiniapp = ref(false)
 const miniappError = ref('')
@@ -80,7 +80,8 @@ let saving = false
 let dirty = false
 let themeUnsubscribe: (() => void) | undefined
 const activeTab = ref('home')
-const { browserTabs, currentSite, currentAddress, browserToolbar, addressDraft, addressEditing, pageLoading, loadError, externalError, openSite, openBrowserTab, activateTab, closeTab, navigateAddress, openExternal, webviewRef, reloadFrame, goBack, goForward, stopFrame, handleLoadStart, handleLoadFinished, frameLoaded, handleNavigate, handleLoadError, handleTitleUpdate, handleWillNavigate, handleFaviconUpdate, handleHostBrowserState } = useBrowserTabs({ activeTab, hostBrowserReady, getHostBrowser: () => hostBrowser, getSdk: () => sdk, isElectron, isPlatformApp })
+const tabMenuOpen = ref(false)
+const { browserTabs, currentSite, currentAddress, browserToolbar, addressDraft, addressEditing, pageLoading, loadError, externalError, openSite, openBrowserTab, duplicateTab, activateTab, detachTab, reloadTab, toggleMute, closeTab, navigateAddress, openExternal, webviewRef, reloadFrame, goBack, goForward, stopFrame, handleLoadStart, handleLoadFinished, frameLoaded, handleNavigate, handleLoadError, handleTitleUpdate, handleWillNavigate, handleFaviconUpdate, handleHostBrowserState } = useBrowserTabs({ activeTab, hostBrowserReady, getHostBrowser: () => hostBrowser, getSdk: () => sdk, isElectron, isPlatformApp })
 const siteDialog = ref(false)
 let dialogTrigger: HTMLElement | null = null
 const manageOpen = ref(false)
@@ -88,14 +89,28 @@ const editingId = ref('')
 const editingMiniapp = ref('')
 const miniappName = ref('')
 const gridEntries = computed<GridEntry[]>(() => {
+  const openWebsiteIds = new Set(browserTabs.value.map(tab => tab.sourceId || tab.id)), openMiniappIds = new Set(miniappTabs.value.map(tab => tab.appId))
   return [
-    ...sites.value.filter(site => site.visible).map(item => ({ type: 'website' as const, item, name: item.name, builtin: item.builtin, pinned: !!item.pinned })),
-    ...miniapps.value.filter(item => miniappVisible(item.id)).map(item => { const saved = miniappEntry(item.id); return { type: 'miniapp' as const, item, name: saved?.name || item.name, builtin: saved?.builtin ?? false, pinned: !!saved?.pinned } }),
+    ...sites.value.filter(site => site.visible).map(item => ({ type: 'website' as const, item, name: item.name, builtin: item.builtin, pinned: !!item.pinned, opened: openWebsiteIds.has(item.id) })),
+    ...miniapps.value.filter(item => miniappVisible(item.id)).map(item => { const saved = miniappEntry(item.id); return { type: 'miniapp' as const, item, name: saved?.name || item.name, builtin: saved?.builtin ?? false, pinned: !!saved?.pinned, opened: openMiniappIds.has(item.id) } }),
   ]
+})
+const tabOrder = ref<string[]>([])
+const rawWorkspaceTabs = computed<WorkbenchTabView[]>(() => [
+  ...browserTabs.value.filter(tab => !tab.detached).map(tab => ({ id: tab.id, kind: 'website' as const, name: tab.pageTitle || tab.name || (() => { try { return new URL(tab.currentUrl).hostname } catch { return '无标题' } })(), url: tab.currentUrl, brand: tab.brand, favicon: tab.faviconUrl, customIcon: tab.iconUrl, cachedIcon: tab.cachedIcon, loading: tab.loading, pinned: !!tab.tabPinned, muted: !!tab.muted, returning: tab.returning })),
+  ...miniappTabs.value.filter(tab => !tab.detached).map(tab => ({ id: tab.id, kind: 'miniapp' as const, name: tab.name, icon: tab.icon, loading: false, pinned: !!tab.tabPinned, muted: !!tab.muted, returning: tab.returning })),
+])
+const workspaceTabs = computed(() => {
+  const byId = new Map(rawWorkspaceTabs.value.map(tab => [tab.id, tab]))
+  return [...tabOrder.value.filter(id => byId.has(id)), ...rawWorkspaceTabs.value.map(tab => tab.id).filter(id => !tabOrder.value.includes(id))].map(id => byId.get(id)!)
 })
 const currentMiniapp = computed(() => miniappTabs.value.find(tab => tab.id === activeTab.value))
 const editingSite = computed(() => sites.value.find(site => site.id === editingId.value))
 const attemptedIcons = new Set<string>()
+watch([() => browserTabs.value.map(tab => tab.id), () => miniappTabs.value.map(tab => tab.id)], ([websites, miniapps]) => {
+  const ids = [...websites, ...miniapps]
+  tabOrder.value = [...tabOrder.value.filter(id => ids.includes(id)), ...ids.filter(id => !tabOrder.value.includes(id))]
+}, { immediate: true })
 watch(sites, () => { if (initialized || !isPlatformApp) saveSites() }, { deep: true, flush: 'sync' })
 watch(sites, () => { if (initialized || !isPlatformApp) cacheSiteIcons() }, { deep: true })
 watch([activeTab, siteDialog, manageOpen, loadError, hostBrowserReady, storageError, storageLoading, permissionReview, permissionsId], () => { void nextTick(() => { syncHostBrowserLayout(); syncMiniappLayout() }) })
@@ -244,20 +259,112 @@ function saveMiniappName() {
   const entry = miniappEntry(editingMiniapp.value)
   if (entry && miniappName.value) { entry.name = miniappName.value; saveSites(); editingMiniapp.value = '' }
 }
+type MiniappTabCommand = { type: 'reload' | 'detach' | 'reattach' | 'end-drag'; id: number; dragOffset?: number; presentation?: { title: string; icon?: string } } | { type: 'mute'; id: number; muted: boolean }
+function controlMiniapp(command: MiniappTabCommand) {
+  if (!sdk) return Promise.reject(new Error('小程序宿主尚未连接'))
+  return (sdk.views.control as (input: MiniappTabCommand | Parameters<MiraAppSdk['views']['control']>[0]) => Promise<number | void>)(command)
+}
+function activateWorkspaceTab(id: string) {
+  if (id.startsWith('miniapp:')) {
+    const tab = miniappTabs.value.find(item => item.id === id)
+    if (!tab) return
+    if (tab.detached) { tab.detached = false; void controlMiniapp({ type: 'reattach', id: tab.viewId }).catch(error => { tab.detached = true; externalError.value = String(error) }) }
+    activeTab.value = id
+    return
+  }
+  activateTab(id)
+}
+function closeWorkspaceTab(id: string) {
+  const wasActive = activeTab.value === id, index = workspaceTabs.value.findIndex(tab => tab.id === id)
+  const next = workspaceTabs.value[index - 1]?.id || workspaceTabs.value[index + 1]?.id || 'home'
+  if (id.startsWith('miniapp:')) closeMiniapp(id); else closeTab(id)
+  if (wasActive) { if (next === 'home') activeTab.value = next; else activateWorkspaceTab(next) }
+}
+function reorderWorkspaceTabs(ids: string[]) {
+  const valid = new Set(workspaceTabs.value.map(tab => tab.id))
+  const ordered = ids.filter(id => valid.has(id)), pinned = new Set(workspaceTabs.value.filter(tab => tab.pinned).map(tab => tab.id))
+  tabOrder.value = [...ordered.filter(id => pinned.has(id)), ...ordered.filter(id => !pinned.has(id))]
+}
+function setTabPinned(id: string, value: boolean) {
+  const site = browserTabs.value.find(tab => tab.id === id)
+  if (site) site.tabPinned = value
+  const miniapp = miniappTabs.value.find(tab => tab.id === id)
+  if (miniapp) miniapp.tabPinned = value
+  const ids = workspaceTabs.value.map(tab => tab.id)
+  tabOrder.value = [...ids.filter(tabId => workspaceTabs.value.find(tab => tab.id === tabId)?.pinned), ...ids.filter(tabId => !workspaceTabs.value.find(tab => tab.id === tabId)?.pinned)]
+}
+async function handleTabAction(action: 'reload' | 'duplicate' | 'pin' | 'mute' | 'close' | 'close-others' | 'close-right', id: string) {
+  const tab = workspaceTabs.value.find(item => item.id === id)
+  if (!tab) return
+  if (action === 'reload' || action === 'duplicate' || action === 'mute') {
+    try {
+      if (tab.kind === 'website') {
+        if (action === 'reload') reloadTab(id)
+        else if (action === 'duplicate') duplicateTab(id)
+        else await toggleMute(id)
+      } else {
+        const miniapp = miniappTabs.value.find(item => item.id === id)
+        if (!miniapp || !sdk) return
+        if (action === 'duplicate') {
+          const item = miniapps.value.find(item => item.id === miniapp.appId)
+          if (item) await openMiniapp(item, true)
+        } else {
+          if (action === 'reload') await controlMiniapp({ type: 'reload', id: miniapp.viewId })
+          else {
+            const muted = !miniapp.muted
+            await Promise.all(miniappTabs.value.filter(item => item.appId === miniapp.appId).map(async item => { await controlMiniapp({ type: 'mute', id: item.viewId, muted }); item.muted = muted }))
+          }
+        }
+      }
+    } catch (error) { externalError.value = error instanceof Error ? error.message : '标签操作失败，请重试' }
+    return
+  }
+  if (action === 'pin') { setTabPinned(id, !tab.pinned); return }
+  if (action === 'close') { closeWorkspaceTab(id); return }
+  const index = workspaceTabs.value.findIndex(item => item.id === id)
+  const ids = action === 'close-others' ? workspaceTabs.value.filter(item => item.id !== id && !item.pinned).map(item => item.id) : workspaceTabs.value.slice(index + 1).map(item => item.id)
+  for (const tabId of ids) closeWorkspaceTab(tabId)
+  activateWorkspaceTab(id)
+}
+let pendingDetach: Promise<unknown> | undefined
+function detachWorkspaceTab(id: string, grabX: number) {
+  const item = workspaceTabs.value.find(tab => tab.id === id)
+  const icon = [...document.querySelectorAll<HTMLElement>('.tab--site')].find(tab => tab.dataset.tabId === id)?.querySelector<HTMLImageElement>('img')
+  const presentation = { title: item?.name || '无标题', icon: icon?.currentSrc || icon?.src }
+
+  if (id.startsWith('miniapp:')) {
+    const tab = miniappTabs.value.find(item => item.id === id)
+    if (!tab || !sdk) return
+    tab.detached = true; activeTab.value = 'home'
+    pendingDetach = controlMiniapp({ type: 'detach', id: tab.viewId, dragOffset: grabX, presentation }).catch(error => { tab.detached = false; activeTab.value = id; externalError.value = String(error) })
+    return
+  }
+  if (!isPlatformApp) { externalError.value = '拖出独立窗口需要在 Mira 桌面端打开工作台'; return }
+  pendingDetach = detachTab(id, grabX, presentation)
+  if (activeTab.value === id && browserTabs.value.find(tab => tab.id === id)?.detached) activeTab.value = 'home'
+}
+function endDetachedDrag(id: string) {
+  // A quick release can arrive before the SDK has acknowledged window creation.
+  void pendingDetach?.then(() => {
+    const tab = miniappTabs.value.find(item => item.id === id)
+    return tab ? controlMiniapp({ type: 'end-drag', id: tab.viewId }) : hostBrowser?.control(id, 'end-drag')
+  }).catch(error => { externalError.value = String(error) })
+  pendingDetach = undefined
+}
 function deleteEntry(entry: GridEntry) {
   if (entry.type === 'website') { editingId.value = entry.item.id; deleteSite() }
   else void manageMiniapp(entry.item, 'uninstall')
 }
-async function openMiniapp(item: InstalledMiniapp) {
+async function openMiniapp(item: InstalledMiniapp, duplicate = false) {
   if (!miniappManager || openingMiniapp.value) return
-  const existing = miniappTabs.value.find(tab => tab.id === `miniapp:${item.id}`)
-  if (existing) { activateTab(existing.id); return }
+  const existing = miniappTabs.value.find(tab => tab.appId === item.id)
+  if (existing && !duplicate) { activateWorkspaceTab(existing.id); return }
   openingMiniapp.value = true; miniappError.value = ''
   try {
-    const viewId = await miniappManager.open(item.id)
+    const viewId = await miniappManager.open(item.id, duplicate)
     if (viewId === undefined) return
     if (typeof viewId !== 'number') throw new Error('小程序打开失败')
-    const tab = { id: `miniapp:${item.id}`, name: item.name, viewId }
+    const tab = { id: duplicate ? `miniapp:${item.id}:${viewId}` : `miniapp:${item.id}`, appId: item.id, name: miniappEntry(item.id)?.name || item.name, icon: item.icon, viewId }
     miniappTabs.value.push(tab); activeTab.value = tab.id
     await nextTick(); syncMiniappLayout()
   } catch (error) { miniappError.value = error instanceof Error ? error.message : '小程序打开失败' }
@@ -266,7 +373,7 @@ async function openMiniapp(item: InstalledMiniapp) {
 function syncMiniappLayout() {
   if (!sdk) return
   const bounds = miniappStage.value?.getBoundingClientRect()
-  for (const tab of miniappTabs.value) void sdk.views.control({ type: 'layout', id: tab.viewId, visible: tab.id === activeTab.value && !siteDialog.value && !manageOpen.value && !storageError.value && !storageLoading.value && !permissionReview.value && !permissionsId.value && Boolean(bounds?.width && bounds.height), bounds: bounds ? { x: Math.max(0, bounds.x), y: Math.max(0, bounds.y), width: bounds.width, height: bounds.height } : { x: 0, y: 0, width: 0, height: 0 } }).catch(() => undefined)
+  for (const tab of miniappTabs.value) void sdk.views.control({ type: 'layout', id: tab.viewId, visible: !tab.detached && tab.id === activeTab.value && !siteDialog.value && !manageOpen.value && !storageError.value && !storageLoading.value && !permissionReview.value && !permissionsId.value && Boolean(bounds?.width && bounds.height), bounds: bounds ? { x: Math.max(0, bounds.x), y: Math.max(0, bounds.y), width: bounds.width, height: bounds.height } : { x: 0, y: 0, width: 0, height: 0 } }).catch(() => undefined)
 }
 function closeMiniapp(id: string) {
   const index = miniappTabs.value.findIndex(tab => tab.id === id)
@@ -295,14 +402,35 @@ function restoreDefaults() { sites.value = structuredClone(builtinSites) }
 function applyTheme(theme: unknown) {
   if (theme === 'light' || theme === 'dark') { document.documentElement.dataset.theme = theme; miniappManager?.themeChanged(theme) }
 }
+async function setTabMenuOpen(open: boolean) {
+  tabMenuOpen.value = open
+  if (!isPlatformApp) return
+  if (open) document.documentElement.classList.add('workbench-tab-menu-open')
+  try { await hostBrowser?.overlay(open) }
+  catch (error) { externalError.value = error instanceof Error ? error.message : '无法显示标签菜单，请重试' }
+  finally { if (!open && !tabMenuOpen.value) document.documentElement.classList.remove('workbench-tab-menu-open') }
+}
 function syncHostBrowserLayout() {
   if (hostBrowserReady.value) hostBrowser?.layout(activeTab.value, webContent.value, Boolean(currentSite.value) && !siteDialog.value && !manageOpen.value && !loadError.value && !storageError.value && !storageLoading.value && !permissionReview.value && !permissionsId.value)
 }
 function handlePlatformMessage(event: MessageEvent) {
   if (event.source !== window.parent) return
-  const message = event.data as { type?: string; theme?: unknown; url?: unknown } | undefined
+  const message = event.data as { type?: string; theme?: unknown; url?: unknown; value?: unknown } | undefined
   if (message?.type === 'mira:theme') applyTheme(message.theme)
   if (message?.type === 'mira:workbench-open-tab' && typeof message.url === 'string') openBrowserTab(message.url)
+  if (message?.type === 'mira:workbench-detached-event') handleDetachedEvent(message.value)
+}
+function handleDetachedEvent(value: unknown) {
+  if (!value || typeof value !== 'object') return
+  const item = value as { id?: unknown; tabId?: unknown; detached?: unknown }
+  const id = typeof item.tabId === 'string' ? item.tabId : typeof item.id === 'number' ? miniappTabs.value.find(tab => tab.viewId === item.id)?.id : undefined
+  if (!id || typeof item.detached !== 'boolean') return
+  const miniapp = miniappTabs.value.find(tab => tab.id === id)
+  if (miniapp) miniapp.detached = item.detached
+  const website = browserTabs.value.find(tab => tab.id === id)
+  if (website) website.detached = item.detached
+  if (item.detached && activeTab.value === id) activeTab.value = 'home'
+  if (!item.detached) { activeTab.value = id; const tab = browserTabs.value.find(item => item.id === id) || miniappTabs.value.find(item => item.id === id); if (tab) { tab.returning = true; window.setTimeout(() => { tab.returning = false }, 260) }; void nextTick(syncMiniappLayout) }
 }
 function relayMiraShortcut(event: KeyboardEvent) {
   if (event.defaultPrevented || event.isComposing || event.repeat || (!event.metaKey && !event.ctrlKey)) return
@@ -340,6 +468,7 @@ onMounted(() => {
   if (!isPlatformApp) applyTheme(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
 })
 onUnmounted(() => {
+  document.documentElement.classList.remove('workbench-tab-menu-open')
   finishReview(false); themeUnsubscribe?.(); void miniappManager?.dispose().finally(() => sdk?.dispose())
   hostBrowser?.dispose(); browserResize?.disconnect(); window.clearTimeout(browserConnectTimer)
   window.removeEventListener('message', handlePlatformMessage)
