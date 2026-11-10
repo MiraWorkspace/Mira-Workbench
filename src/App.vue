@@ -1,9 +1,9 @@
 <template>
-  <main class="workbench" :class="{ 'workbench--browser': activeTab !== 'home' }">
+  <main class="workbench" :class="{ 'workbench--browser': !currentHome }">
     <FloatingTransition kind="dialog"><div v-if="storageLoading || storageError" class="dialog-backdrop"><section class="site-dialog" role="alertdialog" aria-modal="true"><h2>{{ storageLoading ? '正在加载工作台' : '工作台数据不可用' }}</h2><p v-if="storageError">{{ storageError }}</p><div v-if="storageError" class="dialog-actions"><button class="add-button" type="button" @click="retryStorage">重试</button></div></section></div></FloatingTransition>
-    <WorkbenchTabs :active-tab="activeTab" :tabs="workspaceTabs" :logo-url="logoUrl" @activate="id => id === 'home' ? activeTab = 'home' : activateWorkspaceTab(id)" @close="closeWorkspaceTab" @reorder="reorderWorkspaceTabs" @action="handleTabAction" @detach="detachWorkspaceTab" @detached-drag-end="endDetachedDrag" @menu="setTabMenuOpen" @add="openAdd" @manage="manageOpen = true" />
+    <WorkbenchTabs :active-tab="activeTab" :tabs="workspaceTabs" :logo-url="logoUrl" @activate="activateWorkspaceTab" @new-tab="addHomeTab" @close="closeWorkspaceTab" @reorder="reorderWorkspaceTabs" @action="handleTabAction" @detach="detachWorkspaceTab" @detached-drag-end="endDetachedDrag" @menu="setTabMenuOpen" @add="openAdd" @manage="manageOpen = true" />
 
-    <WorkbenchHome v-show="activeTab === 'home'" :entries="gridEntries" :opening-miniapp="openingMiniapp" :error="miniappError" :notice="miniappNotice" @open="entry => entry.type === 'website' ? openSite(entry.item) : openMiniapp(entry.item)" @hide="hideEntry" @pin="togglePin" @edit="editEntry" @delete="deleteEntry" @add="openAdd" />
+    <WorkbenchHome v-show="Boolean(currentHome)" v-model:query="homeQuery" :entries="gridEntries" :opening-miniapp="openingMiniapp" :error="miniappError" :notice="miniappNotice" @open="entry => entry.type === 'website' ? openSite(entry.item) : openMiniapp(entry.item)" @hide="hideEntry" @pin="togglePin" @edit="editEntry" @delete="deleteEntry" @add="openAdd" @manage="manageOpen = true" />
 
     <p v-if="externalError" class="external-error" role="alert">{{ externalError }}<button class="text-button" type="button" @click="externalError = ''">关闭</button></p>
     <section v-if="browserTabs.length" v-show="Boolean(currentSite)" class="browser-view">
@@ -84,7 +84,10 @@ let initialized = false
 let saving = false
 let dirty = false
 let themeUnsubscribe: (() => void) | undefined
-const activeTab = ref('home')
+const homeTabs = ref([{ id: `home-${crypto.randomUUID()}`, pinned: false, query: '' }])
+const activeTab = ref(homeTabs.value[0]!.id)
+const currentHome = computed(() => homeTabs.value.find(tab => tab.id === activeTab.value))
+const homeQuery = computed({ get: () => currentHome.value?.query || '', set: value => { if (currentHome.value) currentHome.value.query = value } })
 const tabMenuOpen = ref(false)
 const { browserTabs, currentSite, currentAddress, browserToolbar, addressDraft, addressEditing, pageLoading, loadError, externalError, openSite, openBrowserTab, duplicateTab, activateTab, detachTab, reloadTab, toggleMute, closeTab, navigateAddress, openExternal, webviewRef, reloadFrame, goBack, goForward, stopFrame, handleLoadStart, handleLoadFinished, frameLoaded, handleNavigate, handleLoadError, handleTitleUpdate, handleWillNavigate, handleFaviconUpdate, handleHostBrowserState } = useBrowserTabs({ activeTab, hostBrowserReady, getHostBrowser: () => hostBrowser, getSdk: () => sdk, isElectron, isPlatformApp })
 const siteDialog = ref(false)
@@ -102,6 +105,7 @@ const gridEntries = computed<GridEntry[]>(() => {
 })
 const tabOrder = ref<string[]>([])
 const rawWorkspaceTabs = computed<WorkbenchTabView[]>(() => [
+  ...homeTabs.value.map(tab => ({ id: tab.id, kind: 'home' as const, name: '工作台', loading: false, pinned: tab.pinned, muted: false })),
   ...browserTabs.value.filter(tab => !tab.detached).map(tab => ({ id: tab.id, kind: 'website' as const, name: tab.pageTitle || tab.name || (() => { try { return new URL(tab.currentUrl).hostname } catch { return '无标题' } })(), url: tab.currentUrl, brand: tab.brand, favicon: tab.faviconUrl, customIcon: tab.iconUrl, cachedIcon: tab.cachedIcon, loading: tab.loading, pinned: !!tab.tabPinned, muted: !!tab.muted, returning: tab.returning })),
   ...miniappTabs.value.filter(tab => !tab.detached).map(tab => ({ id: tab.id, kind: 'miniapp' as const, name: tab.name, icon: tab.icon, loading: false, pinned: !!tab.tabPinned, muted: !!tab.muted, returning: tab.returning })),
 ])
@@ -119,9 +123,10 @@ watch(() => browserTabs.value.filter(tab => tab.detached).map(tab => ({ id: tab.
   }
 })
 const attemptedIcons = new Set<string>()
-watch([() => browserTabs.value.map(tab => tab.id), () => miniappTabs.value.map(tab => tab.id)], ([websites, miniapps]) => {
-  const ids = [...websites, ...miniapps]
+watch([() => [...homeTabs.value, ...browserTabs.value, ...miniappTabs.value].map(tab => tab.id), () => rawWorkspaceTabs.value.map(tab => tab.id), activeTab], ([ids, visibleIds]) => {
   tabOrder.value = [...tabOrder.value.filter(id => ids.includes(id)), ...ids.filter(id => !tabOrder.value.includes(id))]
+  if (!visibleIds.length) addHomeTab()
+  else if (!visibleIds.includes(activeTab.value)) activateWorkspaceTab(workspaceTabs.value.find(tab => tab.kind === 'home')?.id || workspaceTabs.value[0]!.id)
 }, { immediate: true })
 watch(sites, () => { if (initialized || !isPlatformApp) saveSites() }, { deep: true, flush: 'sync' })
 watch(sites, () => { if (initialized || !isPlatformApp) cacheSiteIcons() }, { deep: true })
@@ -191,7 +196,7 @@ async function initializeStorage() {
         if (added.length) { otherEntries.value.push(...added.map(item => ({ id: `miniapp:${item.id}`, type: 'miniapp' as const, name: item.name, address: item.id, builtin: false, visible: true }))); saveSites() }
       }, viewId => {
         const tab = miniappTabs.value.find(tab => tab.viewId === viewId)
-        if (tab) { miniappTabs.value = miniappTabs.value.filter(item => item !== tab); if (activeTab.value === tab.id) activeTab.value = 'home' }
+        if (tab) { miniappTabs.value = miniappTabs.value.filter(item => item !== tab); if (activeTab.value === tab.id) activeTab.value = '' }
       })
     }
     try { await miniappManager.initialize() }
@@ -276,7 +281,12 @@ function controlMiniapp(command: MiniappTabCommand) {
   if (!sdk) return Promise.reject(new Error('小程序宿主尚未连接'))
   return (sdk.views.control as (input: MiniappTabCommand | Parameters<MiraAppSdk['views']['control']>[0]) => Promise<number | void>)(command)
 }
+function addHomeTab() {
+  const tab = { id: `home-${crypto.randomUUID()}`, pinned: false, query: '' }
+  homeTabs.value.push(tab); activeTab.value = tab.id
+}
 function activateWorkspaceTab(id: string) {
+  if (homeTabs.value.some(tab => tab.id === id)) { activeTab.value = id; return }
   if (id.startsWith('miniapp:')) {
     const tab = miniappTabs.value.find(item => item.id === id)
     if (!tab) return
@@ -288,9 +298,10 @@ function activateWorkspaceTab(id: string) {
 }
 function closeWorkspaceTab(id: string) {
   const wasActive = activeTab.value === id, index = workspaceTabs.value.findIndex(tab => tab.id === id)
-  const next = workspaceTabs.value[index - 1]?.id || workspaceTabs.value[index + 1]?.id || 'home'
-  if (id.startsWith('miniapp:')) closeMiniapp(id); else closeTab(id)
-  if (wasActive) { if (next === 'home') activeTab.value = next; else activateWorkspaceTab(next) }
+  const next = workspaceTabs.value[index - 1]?.id || workspaceTabs.value[index + 1]?.id || ''
+  if (homeTabs.value.some(tab => tab.id === id)) homeTabs.value = homeTabs.value.filter(tab => tab.id !== id)
+  else if (id.startsWith('miniapp:')) closeMiniapp(id); else closeTab(id)
+  if (wasActive) { if (next) activateWorkspaceTab(next); else activeTab.value = '' }
 }
 function reorderWorkspaceTabs(ids: string[]) {
   const valid = new Set(workspaceTabs.value.map(tab => tab.id))
@@ -298,6 +309,8 @@ function reorderWorkspaceTabs(ids: string[]) {
   tabOrder.value = [...ordered.filter(id => pinned.has(id)), ...ordered.filter(id => !pinned.has(id))]
 }
 function setTabPinned(id: string, value: boolean) {
+  const home = homeTabs.value.find(tab => tab.id === id)
+  if (home) home.pinned = value
   const site = browserTabs.value.find(tab => tab.id === id)
   if (site) site.tabPinned = value
   const miniapp = miniappTabs.value.find(tab => tab.id === id)
@@ -310,7 +323,10 @@ async function handleTabAction(action: 'reload' | 'duplicate' | 'pin' | 'mute' |
   if (!tab) return
   if (action === 'reload' || action === 'duplicate' || action === 'mute') {
     try {
-      if (tab.kind === 'website') {
+      if (tab.kind === 'home') {
+        if (action === 'duplicate') addHomeTab()
+        else if (action === 'reload') { const home = homeTabs.value.find(tab => tab.id === id); if (home) home.query = ''; activateWorkspaceTab(id) }
+      } else if (tab.kind === 'website') {
         if (action === 'reload') reloadTab(id)
         else if (action === 'duplicate') duplicateTab(id)
         else await toggleMute(id)
@@ -347,13 +363,13 @@ function detachWorkspaceTab(id: string, grabX: number) {
   if (id.startsWith('miniapp:')) {
     const tab = miniappTabs.value.find(item => item.id === id)
     if (!tab || !sdk) return
-    tab.detached = true; activeTab.value = 'home'
+    tab.detached = true; activeTab.value = ''
     pendingDetach = controlMiniapp({ type: 'detach', id: tab.viewId, dragOffset: grabX, presentation }).catch(error => { tab.detached = false; activeTab.value = id; externalError.value = String(error) })
     return
   }
   if (!isPlatformApp) { externalError.value = '拖出独立窗口需要在 Mira 桌面端打开工作台'; return }
   pendingDetach = detachTab(id, grabX, presentation)
-  if (activeTab.value === id && browserTabs.value.find(tab => tab.id === id)?.detached) activeTab.value = 'home'
+  if (activeTab.value === id && browserTabs.value.find(tab => tab.id === id)?.detached) activeTab.value = ''
 }
 function endDetachedDrag(id: string) {
   // A quick release can arrive before the SDK has acknowledged window creation.
@@ -392,7 +408,7 @@ function closeMiniapp(id: string) {
   if (index < 0) return
   const [tab] = miniappTabs.value.splice(index, 1)
   void miniappManager?.close(tab.viewId).catch(() => undefined)
-  if (activeTab.value === id) activeTab.value = 'home'
+  if (activeTab.value === id) activeTab.value = ''
 }
 function openAdd() { editingId.value = ''; showSiteDialog() }
 function editSite(site: WebsiteEntry) { editingId.value = site.id; showSiteDialog() }
@@ -441,7 +457,7 @@ function handleDetachedEvent(value: unknown) {
   if (miniapp) miniapp.detached = item.detached
   const website = browserTabs.value.find(tab => tab.id === id)
   if (website) website.detached = item.detached
-  if (item.detached && activeTab.value === id) activeTab.value = 'home'
+  if (item.detached && activeTab.value === id) activeTab.value = ''
   if (!item.detached) { activeTab.value = id; const tab = browserTabs.value.find(item => item.id === id) || miniappTabs.value.find(item => item.id === id); if (tab) { tab.returning = true; window.setTimeout(() => { tab.returning = false }, 260) }; void nextTick(syncMiniappLayout) }
 }
 function relayMiraShortcut(event: KeyboardEvent) {

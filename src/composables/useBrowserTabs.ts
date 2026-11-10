@@ -98,7 +98,7 @@ function closeTab(id: string) {
   webviewEls.delete(id)
   browserTabs.value.splice(index, 1)
   if (activeTab.value === id) {
-    activeTab.value = browserTabs.value[Math.max(0, index - 1)]?.id || 'home'
+    activeTab.value = browserTabs.value[Math.max(0, index - 1)]?.id || ''
     loadError.value = currentSite.value?.error || ''
   }
 }
@@ -254,7 +254,7 @@ function handleHostBrowserState(state: HostBrowserState) {
     const wasDetached = tab.detached
     tab.detached = state.detached
     if (wasDetached && !state.detached) activeTab.value = tab.id
-    else if (state.detached && activeTab.value === tab.id) activeTab.value = 'home'
+    else if (state.detached && activeTab.value === tab.id) activeTab.value = ''
   }
   tab.error = state.error
   if (state.faviconUrl !== undefined) tab.faviconUrl = state.faviconUrl

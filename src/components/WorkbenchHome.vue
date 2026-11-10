@@ -1,5 +1,6 @@
 <template>
   <section class="home-view">
+    <WorkbenchActions class="home-actions" @add="$emit('add')" @manage="$emit('manage')" />
     <div class="home-content">
       <div class="search-row"><label class="search-box"><Search :size="18" /><input v-model="query" aria-label="搜索网站" placeholder="搜索" /><button v-if="query" type="button" aria-label="清除搜索" @click="query = ''"><X :size="15" /></button></label></div>
       <div v-if="filteredEntries.length" class="site-grid">
@@ -23,12 +24,13 @@
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { Pin, Plus, Search, X } from 'lucide-vue-next'
 import BrandMark from './BrandMark.vue'
+import WorkbenchActions from './WorkbenchActions.vue'
 import FloatingTransition from './FloatingTransition.vue'
 import type { GridEntry } from '../types'
 
 const props = defineProps<{ entries: GridEntry[]; openingMiniapp: boolean; error: string; notice: string }>()
-const emit = defineEmits<{ open: [entry: GridEntry]; hide: [entry: GridEntry]; pin: [entry: GridEntry]; edit: [entry: GridEntry]; delete: [entry: GridEntry]; add: [] }>()
-const query = ref('')
+const emit = defineEmits<{ open: [entry: GridEntry]; hide: [entry: GridEntry]; pin: [entry: GridEntry]; edit: [entry: GridEntry]; delete: [entry: GridEntry]; add: []; manage: [] }>()
+const query = defineModel<string>('query', { default: '' })
 const menu = ref<{ entry: GridEntry; x: number; y: number }>()
 const filteredEntries = computed(() => {
   const term = query.value.trim().toLocaleLowerCase()

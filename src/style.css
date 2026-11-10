@@ -13,17 +13,17 @@ button:focus-visible, input:focus-visible { outline: 2px solid #678a78; outline-
 .workbench { display: flex; width: 100%; height: 100%; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; background: #f8f8f9; }
 .topbar { z-index: 2; display: flex; height: 44px; min-height: 44px; align-items: center; gap: 16px; padding: 0 16px; background: #f8f8f9; }
 .tabs { display: flex; min-width: 0; height: 100%; flex: 1; align-items: center; gap: 4px; overflow: hidden; }
-.tabs-scroll { display: flex; min-width: 0; height: 100%; flex: 1; align-items: center; gap: 4px; overflow: auto hidden; scrollbar-width: none; }
+.tabs-scroll { display: flex; min-width: 0; height: 100%; flex: 0 1 auto; align-items: center; gap: 4px; overflow: auto hidden; scrollbar-width: none; }
 .tabs-scroll::-webkit-scrollbar { display: none; }
-.tabs-list { position: relative; display: flex; width: max-content; min-width: 100%; height: 100%; flex: 0 0 auto; align-items: center; gap: 4px; }
-.tab--home { flex-shrink: 0; }
+.tabs-list { position: relative; display: flex; width: max-content; height: 100%; flex: 0 0 auto; align-items: center; gap: 4px; }
+.new-tab-button { width: 28px; height: 28px; margin-right: 4px; }
 .tab { position: relative; display: flex; height: 32px; min-width: max-content; align-items: center; justify-content: center; gap: 8px; padding: 0 12px; border: 0; border-radius: 11px; background: transparent; color: var(--muted); font-size: 12px; cursor: pointer; transition: background .14s ease, color .14s ease, box-shadow .14s ease, opacity .14s ease, translate .18s cubic-bezier(.16, 1, .3, 1); }
 .workbench-tab-logo { width: 16px; height: 16px; object-fit: contain; }
 .tab:hover:not(.is-active) { background: var(--surface-muted); color: var(--text); }
 .tab.is-active { color: #26342d; background: var(--surface); box-shadow: 0 1px 4px rgb(25 34 28 / 8%); }
 .tabs--dragging .tab { cursor: grabbing; }
 .tab.is-dragging { z-index: 3; transition: none; }
-.tab--site { touch-action: none; user-select: none; }
+.tab--workspace { touch-action: none; user-select: none; }
 .tab.is-returning { animation: tab-return .28s cubic-bezier(.16, 1, .3, 1); }
 .tab-move { transition: transform .2s cubic-bezier(.2, .75, .25, 1); }
 .tab-enter-active { transition: opacity .18s ease, transform .22s cubic-bezier(.16, 1, .3, 1); }
@@ -31,14 +31,14 @@ button:focus-visible, input:focus-visible { outline: 2px solid #678a78; outline-
 .tab-leave-active { z-index: 0; pointer-events: none; transition: opacity .12s ease, transform .12s ease; transform-origin: right center; }
 .tab-leave-to { opacity: 0; transform: scaleX(.82); }
 @keyframes tab-return { from { opacity: .35; transform: translateY(5px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
-.tab--site { min-width: 0; max-width: 200px; flex: 0 0 170px; justify-content: flex-start; gap: 7px; padding: 0 10px; }
-.tab--site::after { position: absolute; right: -3px; width: 1px; height: 16px; background: var(--line); content: ""; }
-.tab--site:is(:hover, .is-active)::after, .tab--site:has(+ .tab:is(:hover, .is-active))::after, .tab--site:last-child::after { opacity: 0; }
-.tab--site.is-pinned { flex-basis: 38px; justify-content: center; padding: 0; }
+.tab--workspace { min-width: 0; max-width: 200px; flex: 0 0 170px; justify-content: flex-start; gap: 7px; padding: 0 10px; }
+.tab--workspace::after { position: absolute; right: -3px; width: 1px; height: 16px; background: var(--line); content: ""; }
+.tab--workspace:is(:hover, .is-active)::after, .tab--workspace:has(+ .tab:is(:hover, .is-active))::after, .tab--workspace:last-child::after { opacity: 0; }
+.tab--workspace.is-pinned { flex-basis: 38px; justify-content: center; padding: 0; }
 .tab.is-pinned .tab-label, .tab.is-pinned .tab-close, .tab.is-pinned .tab-pin { display: none; }
 .tab-muted { flex-shrink: 0; color: var(--muted); }
-.tab--site .brand-mark { width: 17px; height: 17px; font-size: 12px; }
-.tab--site .brand-mark--fallback { border-radius: 5px; }
+.tab--workspace .brand-mark { width: 17px; height: 17px; font-size: 12px; }
+.tab--workspace .brand-mark--fallback { border-radius: 5px; }
 .tab-loading-indicator { flex-shrink: 0; color: var(--accent); animation: browser-loading-spin .9s linear infinite; }
 .miniapp-tab-icon { display: grid; width: 17px; height: 17px; flex-shrink: 0; place-items: center; overflow: hidden; border-radius: 4px; color: var(--muted); }
 .miniapp-tab-icon img { width: 100%; height: 100%; object-fit: contain; }
@@ -61,7 +61,8 @@ html.workbench-overlay-open, html.workbench-overlay-open .workbench, html.workbe
 .icon-button:hover { border-color: #e7e9ed; background: #f6f7f8; color: var(--ink); }
 .add-button { display: inline-flex; min-height: 34px; align-items: center; justify-content: center; gap: 7px; padding: 0 13px; border: 1px solid #3c5d4d; border-radius: 7px; background: #476b5b; color: white; font-size: 12px; font-weight: 550; cursor: pointer; transition: background .16s ease, transform .16s ease; }
 .add-button:hover { transform: translateY(-1px); background: #3c5d4d; }
-.home-view { min-width: 0; min-height: 0; flex: 1; margin: 0 8px 8px; overflow: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.home-view { position: relative; min-width: 0; min-height: 0; flex: 1; margin: 0 8px 8px; overflow: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.home-actions { position: absolute; top: 12px; right: 12px; }
 .home-content { width: min(1120px, 100%); margin: 0 auto; padding: 48px 40px 28px; }
 .eyebrow { margin: 0 0 12px; color: #78867e; font-size: 9px; font-weight: 700; letter-spacing: .16em; }
 h1, h2, p { margin-top: 0; }
