@@ -7,8 +7,8 @@ import { MiniappManager } from '../src/miniapps/manager.ts'
 const manifest = { manifestVersion: 1, id: 'notes', name: 'Notes', version: '1.0.0', entry: 'index.html', requiredCapabilities: ['storage:app', 'files:read', 'files:write', 'models:generate'] }
 const pack = (changes = {}, extra = {}) => zipSync({ 'miniapp-manifest.json': strToU8(JSON.stringify({ ...manifest, ...changes })), 'index.html': strToU8('<h1>Notes</h1>'), ...extra })
 function fixture() {
-  const files = new Map(), replies = [], operations = [], grants = new Map()
-  let nextView = 1, listener, items = [], confirm = true, failPath = '', generate = async () => ({ text: 'result' })
+  const files = new Map(), replies = [], operations = [], grants = new Map(), modelCalls = [], searchCalls = []
+  let nextView = 1, listener, items = [], confirm = true, failPath = '', generate = async () => ({ text: 'result' }), chat = async () => ({ text: 'chat result' }), search = async () => ({ engine: 'bing', results: [{ title: 'TypeScript', url: 'https://www.typescriptlang.org/' }] })
   const sdk = {
     files: {
       async list({ path = '' } = {}) { const prefix = path ? path + '/' : ''; return [...new Set([...files.keys()].filter(key => key.startsWith(prefix)).map(key => key.slice(prefix.length).split('/')[0]))].map(name => ({ name, directory: [...files.keys()].some(key => key.startsWith(prefix + name + '/')) })) },
@@ -20,10 +20,16 @@ function fixture() {
     },
     views: { subscribe(fn) { listener = fn; return () => {} }, async control(input) { if (input.type === 'open') return nextView++; replies.push(input) } },
     storage: { async legacyWorkbenchMiniapps() { return [] }, async migrate(migrations, namespace) { operations.push({ migrations, namespace }); return 1 }, async transaction(ops, namespace) { operations.push({ ops, namespace }); return [[]] } },
-    models: { generate: (...args) => generate(...args) }, notifications: { async send() {} }, appearance: { async get() { return 'light' } },
+    web: { search: input => { searchCalls.push(input); return search(input) } },
+    models: {
+      generate: (...args) => generate(...args),
+      async listProviders() { modelCalls.push(['providers']); return [{ id: 'p', name: 'Provider' }] },
+      async listModels(id) { modelCalls.push(['models', id]); return [{ id: 'm', name: 'Model' }] },
+      chat: input => { modelCalls.push(['chat', input]); return chat(input) },
+    }, notifications: { async send() {} }, appearance: { async get() { return 'light' } },
   }
   const manager = new MiniappManager(sdk, async () => confirm, next => { items = next }, () => {})
-  return { manager, files, replies, operations, grants, get items() { return items }, set confirm(value) { confirm = value }, set failPath(value) { failPath = value }, set generate(value) { generate = value }, request: (viewId, method, params) => manager.handleRequest({ viewId, requestId: crypto.randomUUID(), method, params }) }
+  return { manager, files, replies, operations, grants, modelCalls, searchCalls, get items() { return items }, set confirm(value) { confirm = value }, set failPath(value) { failPath = value }, set generate(value) { generate = value }, set chat(value) { chat = value }, set search(value) { search = value }, request: (viewId, method, params) => manager.handleRequest({ viewId, requestId: crypto.randomUUID(), method, params }) }
 }
 
 test('Workbench validates packages and rejects traversal, reserved identity and platform management permissions', () => {
@@ -78,10 +84,54 @@ test('permission checks isolate files, reject forged methods and enforce read-on
   await f.manager.removeDirectory('notes', grant.id); assert.equal(f.grants.has(grant.id), false)
 })
 
-test('revocation closes running views and suppresses delayed model results', async () => {
+test('web search has its own permission, forwards the query and suppresses revoked results', async () => {
+  const f = fixture(); await f.manager.initialize(); await f.manager.install(pack()); let view = await f.manager.open('notes')
+  await f.request(view, 'web.search', { query: 'TypeScript' })
+  assert.equal(f.replies.at(-1).ok, false); assert.equal(f.searchCalls.length, 0)
+  await f.request(view, 'models.chat', { providerId: 'p', modelId: 'm', webSearch: true, messages: [{ role: 'user', content: 'search' }] })
+  assert.equal(f.replies.at(-1).ok, false); assert.equal(f.modelCalls.length, 0)
+  await f.manager.install(pack({ version: '1.1.0', requiredCapabilities: ['storage:app', 'web:search'] })); view = await f.manager.open('notes')
+  const input = { query: 'TypeScript', engine: 'bing', limit: 3 }
+  await f.request(view, 'web.search', input)
+  assert.deepEqual(f.searchCalls, [input]); assert.equal(f.replies.at(-1).value.engine, 'bing')
+  await f.request(view, 'models.listProviders'); assert.equal(f.replies.at(-1).ok, false)
+  let finish; f.search = () => new Promise(resolve => { finish = resolve })
+  const start = f.replies.length, pending = f.request(view, 'web.search', input)
+  await f.manager.setPermissions('notes', ['storage:app'])
+  finish({ results: [{ title: 'late' }] }); await pending
+  assert.equal(f.replies.slice(start).some(reply => reply.type === 'reply' && reply.ok), false)
+  view = await f.manager.open('notes'); await f.request(view, 'web.search', input)
+  assert.equal(f.replies.at(-1).ok, false); assert.equal(f.searchCalls.length, 2)
+})
+
+test('forwards autonomous web chat only when both model and search are approved', async () => {
+  const f = fixture(); await f.manager.initialize(); await f.manager.install(pack({ requiredCapabilities: ['models:generate', 'web:search'] }))
+  const view = await f.manager.open('notes'), input = { providerId: 'p', modelId: 'm', webSearch: true, messages: [{ role: 'user', content: 'search' }] }
+  await f.request(view, 'models.chat', input)
+  assert.deepEqual(f.modelCalls, [['chat', input]]); assert.equal(f.replies.at(-1).ok, true)
+})
+
+test('model permission gates discovery and forwards selected model and complete conversation', async () => {
+  const f = fixture(); await f.manager.initialize(); await f.manager.install(pack()); let view = await f.manager.open('notes')
+  await f.request(view, 'models.listProviders')
+  assert.deepEqual(f.replies.at(-1).value, [{ id: 'p', name: 'Provider' }])
+  await f.request(view, 'models.listModels', { providerId: 'p' })
+  assert.deepEqual(f.replies.at(-1).value, [{ id: 'm', name: 'Model' }])
+  const input = { providerId: 'p', modelId: 'm', system: 'Concise', messages: [{ role: 'user', content: 'Hi' }, { role: 'assistant', content: 'Hello' }, { role: 'user', content: 'Continue' }] }
+  await f.request(view, 'models.chat', input)
+  assert.equal(f.replies.at(-1).value.text, 'chat result')
+  assert.deepEqual(f.modelCalls, [['providers'], ['models', 'p'], ['chat', input]])
+  await f.manager.setPermissions('notes', ['storage:app']); view = await f.manager.open('notes')
+  for (const method of ['models.listProviders', 'models.listModels', 'models.chat']) {
+    await f.request(view, method, input); assert.equal(f.replies.at(-1).ok, false)
+  }
+  assert.equal(f.modelCalls.length, 3)
+})
+
+for (const method of ['models.generate', 'models.chat']) test(`revocation closes running views and suppresses delayed ${method} results`, async () => {
   const f = fixture(); await f.manager.initialize(); await f.manager.install(pack()); const view = await f.manager.open('notes')
-  let finish; f.generate = () => new Promise(resolve => { finish = resolve })
-  const pending = f.request(view, 'models.generate', { prompt: 'hello' }); await f.manager.revoke('notes')
+  let finish; f.generate = f.chat = () => new Promise(resolve => { finish = resolve })
+  const pending = f.request(view, method, { prompt: 'hello', providerId: 'p', modelId: 'm', messages: [{ role: 'user', content: 'hello' }] }); await f.manager.revoke('notes')
   finish({ text: 'late secret' }); await pending
   assert.equal(f.replies.some(reply => reply.ok && reply.value?.text === 'late secret'), false)
   assert.ok(f.replies.some(reply => reply.type === 'close' && reply.id === view))

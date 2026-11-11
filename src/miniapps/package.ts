@@ -1,8 +1,8 @@
 import { unzipSync } from 'fflate'
-export const miniappCapabilities = ['storage:app', 'appearance:read', 'models:generate', 'notifications:send', 'files:read', 'files:write'] as const
+export const miniappCapabilities = ['storage:app', 'appearance:read', 'models:generate', 'web:search', 'notifications:send', 'files:read', 'files:write'] as const
 export type MiniappCapability = typeof miniappCapabilities[number]
 export const capabilityLabels: Record<MiniappCapability, string> = {
-  'storage:app': '读写此小程序的独立数据', 'appearance:read': '读取并跟随主题', 'models:generate': '调用模型（可能产生费用）', 'notifications:send': '发送通知', 'files:read': '读取你授权的目录', 'files:write': '修改你授权的目录',
+  'storage:app': '读写此小程序的独立数据', 'appearance:read': '读取并跟随主题', 'models:generate': '调用模型（可能产生费用）', 'web:search': '联网搜索并读取公开网页（会发送关键词和目标网址）', 'notifications:send': '发送通知', 'files:read': '读取你授权的目录', 'files:write': '修改你授权的目录',
 }
 export interface MiniappManifest { manifestVersion: 1; id: string; name: string; version: string; entry: string; icon?: string; requiredCapabilities: MiniappCapability[] }
 export function packagePath(value: unknown): string {

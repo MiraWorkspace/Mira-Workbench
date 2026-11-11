@@ -1,7 +1,7 @@
 import type { MiraAppSdk } from '@mira/app-sdk'
 
 export interface HostBrowserState {
-  tabId: string; url?: string; title?: string; loading: boolean; canGoBack?: boolean; canGoForward?: boolean; muted?: boolean; detached?: boolean; error?: string; faviconUrl?: string | null
+  tabId: string; url?: string; title?: string; loading: boolean; canGoBack?: boolean; canGoForward?: boolean; muted?: boolean; detached?: boolean; closed?: boolean; error?: string; faviconUrl?: string | null
 }
 export type BrowserAction = 'back' | 'forward' | 'reload' | 'stop' | 'close' | 'mute' | 'detach' | 'reattach' | 'end-drag' | 'presentation'
 
@@ -11,6 +11,7 @@ export function connectPlatformBrowser(sdk: MiraAppSdk, state: (value: HostBrows
     if (event.source !== window || event.data?.type !== 'mira:workbench-browser-event') return
     const value = event.data.value
     if (value?.type === 'state' && typeof value.tabId === 'string') state(value)
+    else if (value?.type === 'closed' && typeof value.tabId === 'string') state({ tabId: value.tabId, loading: false, closed: true })
     else if (value?.type === 'open-tab' && typeof value.url === 'string') openTab(value.url)
     else if (value?.type === 'external-error' && typeof value.message === 'string') reportError(value.message)
   }

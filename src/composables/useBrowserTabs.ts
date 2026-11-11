@@ -108,11 +108,11 @@ async function toggleMute(id: string) {
 function controlBrowser(id: string, action: 'reload' | 'close' | 'back' | 'forward' | 'stop') {
   void options.getHostBrowser()?.control(id, action).catch(error => { setTabLoading(id, false); externalError.value = error instanceof Error ? error.message : '标签操作失败' })
 }
-function closeTab(id: string) {
+function closeTab(id: string, fromHost = false) {
   const index = browserTabs.value.findIndex(tab => tab.id === id)
   if (index < 0) return
   clearTitleRefresh(id)
-  if (!browserTabs.value[index]!.suspended) controlBrowser(id, 'close')
+  if (!fromHost && !browserTabs.value[index]!.suspended) controlBrowser(id, 'close')
   webviewEls.delete(id)
   browserTabs.value.splice(index, 1)
   if (activeTab.value === id) {
@@ -268,6 +268,7 @@ function handleFaviconUpdate(id: string, event: Event) {
   if (tab && favicon) tab.faviconUrl = favicon
 }
 function handleHostBrowserState(state: HostBrowserState) {
+  if (state.closed) { closeTab(state.tabId, true); return }
   const tab = tabById(state.tabId)
   if (!tab || tab.suspended) return
   if (state.url) tab.currentUrl = state.url

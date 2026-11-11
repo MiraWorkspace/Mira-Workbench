@@ -18,13 +18,14 @@
     </section>
     <section v-if="miniappTabs.length" v-show="Boolean(currentMiniapp)" ref="miniappStage" class="browser-view" />
 
-    <FloatingTransition kind="dialog"><SiteDialog v-if="siteDialog" :site="editingSite" :sites="sites" :load-icon="loadSiteIcon" :is-platform-app="isPlatformApp" :managing-miniapp="managingMiniapp" @close="closeSiteDialog" @save="saveSite" @delete="deleteSite" @select-miniapp="selectMiniapp" /></FloatingTransition>
+    <FloatingTransition kind="dialog"><SiteDialog v-if="siteDialog" :inert="sitePendingDeletion ? true : undefined" :site="editingSite" :sites="sites" :load-icon="loadSiteIcon" :is-platform-app="isPlatformApp" :managing-miniapp="managingMiniapp" @close="closeSiteDialog" @save="saveSite" @delete="requestDeleteSite" @select-miniapp="selectMiniapp" /></FloatingTransition>
 
     <FloatingTransition kind="dialog"><div v-if="editingMiniapp" class="dialog-backdrop dialog-backdrop--floating" @click.self="editingMiniapp = ''" @keydown.esc.stop="editingMiniapp = ''"><section class="site-dialog" role="dialog" aria-modal="true" aria-labelledby="edit-miniapp-title"><div class="dialog-heading"><h2 id="edit-miniapp-title">编辑小程序</h2><button class="icon-button" type="button" aria-label="关闭" @click="editingMiniapp = ''"><X :size="17" /></button></div><form @submit.prevent="saveMiniappName"><label><span>显示名称</span><input v-model.trim="miniappName" maxlength="40" required /></label><div class="dialog-actions"><span class="dialog-spacer"></span><button class="cancel-button" type="button" @click="editingMiniapp = ''">取消</button><button class="add-button" type="submit" :disabled="!miniappName">保存</button></div></form></section></div></FloatingTransition>
     <FloatingTransition kind="dialog"><ManageDialog v-if="manageOpen" :sites="sites" :miniapps="miniapps" :entries="otherEntries" :preferences="preferences" :busy="managingMiniapp" @preferences="updatePreferences" @close="manageOpen = false" @edit="site => { manageOpen = false; editSite(site) }" @site-visible="(site, visible) => site.visible = visible" @permissions="openPermissions" @revoke="item => manageMiniapp(item, 'revoke')" @uninstall="item => manageMiniapp(item, 'uninstall')" @miniapp-visible="setMiniappVisible" /></FloatingTransition>
 
     <FloatingTransition kind="dialog"><PermissionsDialog v-if="permissionItem" v-model:draft="permissionDraft" :item="permissionItem" :busy="managingMiniapp" @close="permissionsId = ''" @save="savePermissions" @revoke="manageMiniapp(permissionItem, 'revoke')" @remove-directory="id => miniappAction(() => miniappManager!.removeDirectory(permissionsId, id))" @add-directory="access => miniappAction(() => miniappManager!.addDirectory(permissionsId, access))" /></FloatingTransition>
     <FloatingTransition kind="dialog"><PermissionReviewDialog v-if="permissionReview" :review="permissionReview" @finish="finishReview" /></FloatingTransition>
+    <FloatingTransition kind="dialog"><DeleteSiteDialog v-if="sitePendingDeletion" :site="sitePendingDeletion" @cancel="sitePendingDeletion = undefined" @confirm="confirmDeleteSite" /></FloatingTransition>
     <WorkbenchTooltip />
   </main>
 </template>
@@ -40,6 +41,7 @@ import WorkbenchTabs from './components/WorkbenchTabs.vue'
 import ManageDialog from './components/ManageDialog.vue'
 import BrowserToolbar from './components/BrowserToolbar.vue'
 import SiteDialog from './components/SiteDialog.vue'
+import DeleteSiteDialog from './components/DeleteSiteDialog.vue'
 import PermissionsDialog from './components/PermissionsDialog.vue'
 import PermissionReviewDialog from './components/PermissionReviewDialog.vue'
 import { useBrowserTabs } from './composables/useBrowserTabs'
@@ -94,6 +96,7 @@ const homeQuery = computed({ get: () => currentHome.value?.query || '', set: val
 const tabMenuOpen = ref(false)
 const { browserTabs, residentBrowserTabs, suspendTab, currentSite, currentAddress, browserToolbar, addressDraft, addressEditing, pageLoading, loadError, externalError, openSite, openBrowserTab, duplicateTab, activateTab, detachTab, reloadTab, toggleMute, closeTab, navigateAddress, openExternal, webviewRef, reloadFrame, goBack, goForward, stopFrame, handleLoadStart, handleLoadFinished, frameLoaded, handleNavigate, handleLoadError, handleTitleUpdate, handleWillNavigate, handleFaviconUpdate, handleHostBrowserState } = useBrowserTabs({ activeTab, hostBrowserReady, getHostBrowser: () => hostBrowser, getSdk: () => sdk, openSitesExternally: () => preferences.value.openNewWindowInBrowser, isElectron, isPlatformApp })
 const siteDialog = ref(false)
+const sitePendingDeletion = ref<WebsiteEntry>()
 let dialogTrigger: HTMLElement | null = null
 const manageOpen = ref(false)
 const editingId = ref('')
@@ -118,7 +121,7 @@ const workspaceTabs = computed(() => {
 })
 const currentMiniapp = computed(() => miniappTabs.value.find(tab => tab.id === activeTab.value))
 const editingSite = computed(() => sites.value.find(site => site.id === editingId.value))
-const overlayOpen = computed(() => Boolean(floatingLayerCount.value || tabMenuOpen.value || siteDialog.value || manageOpen.value || editingMiniapp.value || permissionReview.value || permissionsId.value))
+const overlayOpen = computed(() => Boolean(floatingLayerCount.value || tabMenuOpen.value || siteDialog.value || manageOpen.value || editingMiniapp.value || permissionReview.value || permissionsId.value || sitePendingDeletion.value))
 watch([overlayOpen, hostBrowserReady], ([open]) => { void syncOverlay(open) }, { flush: 'post' })
 watch(() => browserTabs.value.filter(tab => tab.detached).map(tab => ({ id: tab.id, icon: detachedIcon(siteIconUrl({ brand: tab.brand, customIcon: tab.iconUrl, cachedIcon: tab.cachedIcon, favicon: tab.faviconUrl })) })), (tabs, previous) => {
   for (const tab of tabs) if (tab.icon !== previous.find(item => item.id === tab.id)?.icon) {
@@ -412,7 +415,7 @@ function endDetachedDrag(id: string) {
   pendingDetach = undefined
 }
 function deleteEntry(entry: GridEntry) {
-  if (entry.type === 'website') { editingId.value = entry.item.id; deleteSite() }
+  if (entry.type === 'website') requestDeleteSite(entry.item)
   else void manageMiniapp(entry.item, 'uninstall')
 }
 async function openMiniapp(item: InstalledMiniapp, duplicate = false) {
@@ -465,8 +468,12 @@ function saveSite(value: { name: string; url: string; iconUrl?: string; cachedIc
   else sites.value.push({ id: 'custom-' + crypto.randomUUID(), ...value, category: 'assistant', builtin: false, visible: true })
   saveSites(); closeSiteDialog()
 }
-function deleteSite(site?: WebsiteEntry) {
-  const id = site?.id ?? editingId.value
+function requestDeleteSite(site: WebsiteEntry) {
+  if (!site.builtin) sitePendingDeletion.value = site
+}
+function confirmDeleteSite() {
+  const id = sitePendingDeletion.value?.id
+  sitePendingDeletion.value = undefined
   const index = sites.value.findIndex(item => item.id === id && !item.builtin)
   if (index >= 0) sites.value.splice(index, 1)
   closeSiteDialog()

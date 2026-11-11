@@ -71,4 +71,4 @@ npm run install:test
 
 Workbench 是自己的小程序宿主，管理安装、运行、能力与目录读写权限、更新和卸载。Mira 管理 Workbench 等第一方子应用，并通过通用 SDK 提供文件读写、SQLite namespace、隔离视图和消息通道。小程序不注册为 Mira 子应用，也不直接取得 Mira SDK 身份。详见 [Workbench 小程序 SDK](docs/MINIAPP_SDK.md)。
 
-当前 Workbench 使用 SDK 0.2.0、Mira API 1.2，需要匹配更新的 Mira 底层。安装更新可即时生效；旧包和旧数据库只读迁移，原数据保留，权限在 Workbench 重新审阅。
+当前 Workbench 使用 SDK 0.3.0（GitHub 标签 `v0.3.0`）、Mira API 1.3，需要匹配更新的 Mira 底层。安装更新可即时生效；旧包和旧数据库只读迁移，原数据保留，权限在 Workbench 重新审阅。

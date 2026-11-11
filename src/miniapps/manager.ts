@@ -1,4 +1,4 @@
-import type { DirectoryGrant, MiraAppSdk, ViewRequest, AppMigration, AppOperation } from '@mira/app-sdk'
+import type { DirectoryGrant, MiraAppSdk, ViewRequest, AppMigration, AppOperation, ChatRequest, ModelRequest, WebSearchRequest } from '@mira/app-sdk'
 import { capabilityLabels, compareVersions, inspectPackage, packagePath, parseManifest, type MiniappCapability, type MiniappManifest } from './package.ts'
 
 export interface InstalledMiniapp { id: string; name: string; icon?: string; manifest: MiniappManifest; release: string; approved: MiniappCapability[]; reviewed: boolean; directories: DirectoryGrant[]; enabled: boolean }
@@ -163,12 +163,19 @@ export class MiniappManager {
     this.assertRunning(viewId, item)
     const input = (params ?? {}) as Record<string, any>
     if (method === 'files.directories') { this.assertRunning(viewId, item, 'files:read'); return item.directories.map(grant => ({ ...grant, access: item.approved.includes('files:write') ? grant.access : 'read' })) }
-    if (method === 'context.get') return { appId: item.id, host: 'workbench', apiVersion: { major: 1, minor: 0 }, capabilities: [...item.approved] }
-    const capability = ({ 'appearance.get': 'appearance:read', 'models.generate': 'models:generate', 'notifications.send': 'notifications:send', 'storage.migrate': 'storage:app', 'storage.transaction': 'storage:app', 'files.read': 'files:read', 'files.list': 'files:read', 'files.write': 'files:write' } as Record<string, MiniappCapability>)[method]
+    if (method === 'context.get') return { appId: item.id, host: 'workbench', apiVersion: { major: 1, minor: 2 }, capabilities: [...item.approved] }
+    const capability = ({ 'appearance.get': 'appearance:read', 'web.search': 'web:search', 'models.listProviders': 'models:generate', 'models.listModels': 'models:generate', 'models.chat': 'models:generate', 'models.generate': 'models:generate', 'notifications.send': 'notifications:send', 'storage.migrate': 'storage:app', 'storage.transaction': 'storage:app', 'files.read': 'files:read', 'files.list': 'files:read', 'files.write': 'files:write' } as Record<string, MiniappCapability>)[method]
     if (!capability) throw new Error('Workbench 不支持此小程序方法')
     this.assertRunning(viewId, item, capability)
     if (method === 'appearance.get') return this.sdk.appearance.get()
-    if (method === 'models.generate') return this.sdk.models.generate(input as { prompt: string })
+    if (method === 'web.search') return this.sdk.web.search(input as WebSearchRequest)
+    if (method === 'models.listProviders') return this.sdk.models.listProviders()
+    if (method === 'models.listModels') return this.sdk.models.listModels(input.providerId)
+    if (method === 'models.chat') {
+      if (input.webSearch) this.assertRunning(viewId, item, 'web:search')
+      return this.sdk.models.chat(input as ChatRequest)
+    }
+    if (method === 'models.generate') return this.sdk.models.generate(input as ModelRequest)
     if (method === 'notifications.send') return this.sdk.notifications.send(input as { title: string })
     if (method === 'storage.migrate') return this.sdk.storage.migrate(input.migrations as AppMigration[], item.id)
     if (method === 'storage.transaction') return this.sdk.storage.transaction(input.operations as AppOperation[], item.id)

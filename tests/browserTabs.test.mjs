@@ -62,3 +62,23 @@ test('keeps active and detached pages alive and does not close a released page t
     assert.equal(tabs.browserTabs.value.length, 0)
   } finally { dispose() }
 })
+
+test('removes a detached tab closed by the host without sending another close command', () => {
+  const { tabs, calls, activeTab, dispose } = fixture()
+  try {
+    const site = { id: 'site', url: 'https://example.com/' }
+    tabs.openSite(site)
+    const tab = tabs.browserTabs.value[0]
+    tabs.handleHostBrowserState({ tabId: tab.id, loading: false, detached: true })
+    activeTab.value = 'home'
+    calls.length = 0
+    tabs.handleHostBrowserState({ tabId: tab.id, loading: false, closed: true })
+    tabs.handleHostBrowserState({ tabId: tab.id, loading: false, closed: true })
+    assert.equal(tabs.browserTabs.value.length, 0)
+    assert.equal(activeTab.value, 'home')
+    assert.deepEqual(calls, [])
+    tabs.openSite(site)
+    assert.equal(tabs.browserTabs.value.length, 1)
+    assert.equal(calls[0][0], 'open')
+  } finally { dispose() }
+})
