@@ -7,9 +7,11 @@ import { MiniappManager } from '../src/miniapps/manager.ts'
 const manifest = { manifestVersion: 1, id: 'notes', name: 'Notes', version: '1.0.0', entry: 'index.html', requiredCapabilities: ['storage:app', 'files:read', 'files:write', 'models:generate'] }
 const pack = (changes = {}, extra = {}) => zipSync({ 'miniapp-manifest.json': strToU8(JSON.stringify({ ...manifest, ...changes })), 'index.html': strToU8('<h1>Notes</h1>'), ...extra })
 function fixture() {
-  const files = new Map(), replies = [], operations = [], grants = new Map(), modelCalls = [], searchCalls = []
+  const files = new Map(), replies = [], operations = [], grants = new Map(), modelCalls = [], searchCalls = [], reviews = []
   let nextView = 1, listener, items = [], confirm = true, failPath = '', generate = async () => ({ text: 'result' }), chat = async () => ({ text: 'chat result' }), search = async () => ({ engine: 'bing', results: [{ title: 'TypeScript', url: 'https://www.typescriptlang.org/' }] })
   const sdk = {
+    context: { async get() { return { apiVersion: { major: 1, minor: 4 } } } },
+    workbench: { async fetchMiniappResource() { throw Error('offline') } },
     files: {
       async list({ path = '' } = {}) { const prefix = path ? path + '/' : ''; return [...new Set([...files.keys()].filter(key => key.startsWith(prefix)).map(key => key.slice(prefix.length).split('/')[0]))].map(name => ({ name, directory: [...files.keys()].some(key => key.startsWith(prefix + name + '/')) })) },
       async read({ path, grant }) { if (grant && !grants.has(grant)) throw Error('no grant'); if (!files.has(path)) throw Error('missing'); return files.get(path) },
@@ -28,9 +30,26 @@ function fixture() {
       chat: input => { modelCalls.push(['chat', input]); return chat(input) },
     }, notifications: { async send() {} }, appearance: { async get() { return 'light' } },
   }
-  const manager = new MiniappManager(sdk, async () => confirm, next => { items = next }, () => {})
-  return { manager, files, replies, operations, grants, modelCalls, searchCalls, get items() { return items }, set confirm(value) { confirm = value }, set failPath(value) { failPath = value }, set generate(value) { generate = value }, set chat(value) { chat = value }, set search(value) { search = value }, request: (viewId, method, params) => manager.handleRequest({ viewId, requestId: crypto.randomUUID(), method, params }) }
+  const manager = new MiniappManager(sdk, async request => { reviews.push(request); return confirm }, next => { items = next }, () => {})
+  return { manager, sdk, reviews, files, replies, operations, grants, modelCalls, searchCalls, get items() { return items }, set confirm(value) { confirm = value }, set failPath(value) { failPath = value }, set generate(value) { generate = value }, set chat(value) { chat = value }, set search(value) { search = value }, request: (viewId, method, params) => manager.handleRequest({ viewId, requestId: crypto.randomUUID(), method, params }) }
 }
+
+test('URL installs preserve review, cancellation, version policy and the previous release on download errors', async () => {
+  const f = fixture(); await f.manager.initialize(); await f.manager.install(pack())
+  const url = 'https://example.com/manifest.json', release = f.items[0].release
+  await assert.rejects(f.manager.installFromUrl(url), /offline/); assert.equal(f.items[0].release, release)
+  const update = { url }, bytes = pack({ version: '1.1.0', update })
+  const sha256 = Buffer.from(await crypto.subtle.digest('SHA-256', bytes)).toString('hex')
+  const document = { ...manifest, version: '1.1.0', update, package: { url: 'https://example.com/1.1.0.miniapp', sha256, size: bytes.length } }
+  f.sdk.workbench.fetchMiniappResource = async (_url, kind) => kind === 'manifest' ? strToU8(JSON.stringify(document)) : bytes
+  f.confirm = false; assert.equal(await f.manager.installFromUrl(url), false); assert.equal(f.items[0].release, release)
+  assert.equal(f.reviews.at(-1).source, url)
+  f.confirm = true; assert.equal(await f.manager.installFromUrl(url), true); assert.equal(f.items[0].manifest.version, '1.1.0')
+  await assert.rejects(f.manager.installFromUrl(url), /版本/)
+  const view = await f.manager.open('notes'); await f.request(view, 'workbench.fetchMiniappResource', { url, kind: 'manifest' }); assert.equal(f.replies.at(-1).ok, false)
+  f.sdk.context.get = async () => ({ apiVersion: { major: 1, minor: 3 } })
+  await assert.rejects(f.manager.installFromUrl(url), /更新 Mira/)
+})
 
 test('Workbench validates packages and rejects traversal, reserved identity and platform management permissions', () => {
   assert.equal(inspectPackage(pack()).manifest.id, 'notes')

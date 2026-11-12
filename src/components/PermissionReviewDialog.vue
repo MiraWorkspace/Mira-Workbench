@@ -1,6 +1,7 @@
 <template>
   <div class="dialog-backdrop" @keydown.esc.stop="$emit('finish', false)"><section ref="dialog" class="site-dialog add-dialog review-dialog" role="alertdialog" aria-modal="true" aria-labelledby="review-title" tabindex="-1" @keydown.tab="trapFocus">
     <h2 id="review-title">{{ review.title }}</h2><p>{{ review.message }}</p>
+    <p v-if="review.source" class="review-source">安装来源：{{ review.source }}</p>
     <template v-if="review.permissions"><p class="manage-copy">此小程序申请以下能力：</p><ul class="permission-summary"><li v-for="permission in review.permissions" :key="permission">{{ permission }}</li><li v-if="!review.permissions.length">未申请额外能力</li></ul></template>
     <div class="dialog-actions"><span class="dialog-spacer"></span><button class="cancel-button" type="button" @click="$emit('finish', false)">取消</button><button class="add-button" type="button" @click="$emit('finish', true)">{{ review.confirm }}</button></div>
   </section></div>

@@ -18,7 +18,7 @@
     </section>
     <section v-if="miniappTabs.length" v-show="Boolean(currentMiniapp)" ref="miniappStage" class="browser-view" />
 
-    <FloatingTransition kind="dialog"><SiteDialog v-if="siteDialog" :inert="sitePendingDeletion ? true : undefined" :site="editingSite" :sites="sites" :load-icon="loadSiteIcon" :is-platform-app="isPlatformApp" :managing-miniapp="managingMiniapp" @close="closeSiteDialog" @save="saveSite" @delete="requestDeleteSite" @select-miniapp="selectMiniapp" /></FloatingTransition>
+    <FloatingTransition kind="dialog"><SiteDialog v-if="siteDialog" :inert="sitePendingDeletion || permissionReview ? true : undefined" :site="editingSite" :sites="sites" :load-icon="loadSiteIcon" :is-platform-app="isPlatformApp" :managing-miniapp="managingMiniapp" :miniapp-error="miniappError" :installing-from-url="installingFromUrl" @close="closeSiteDialog" @save="saveSite" @delete="requestDeleteSite" @select-miniapp="selectMiniapp" @install-url="installMiniappFromUrl" @open-docs="openMiniappDocs" /></FloatingTransition>
 
     <FloatingTransition kind="dialog"><div v-if="editingMiniapp" class="dialog-backdrop dialog-backdrop--floating" @click.self="editingMiniapp = ''" @keydown.esc.stop="editingMiniapp = ''"><section class="site-dialog" role="dialog" aria-modal="true" aria-labelledby="edit-miniapp-title"><div class="dialog-heading"><h2 id="edit-miniapp-title">编辑小程序</h2><button class="icon-button" type="button" aria-label="关闭" @click="editingMiniapp = ''"><X :size="17" /></button></div><form @submit.prevent="saveMiniappName"><label><span>显示名称</span><input v-model.trim="miniappName" maxlength="40" required /></label><div class="dialog-actions"><span class="dialog-spacer"></span><button class="cancel-button" type="button" @click="editingMiniapp = ''">取消</button><button class="add-button" type="submit" :disabled="!miniappName">保存</button></div></form></section></div></FloatingTransition>
     <FloatingTransition kind="dialog"><ManageDialog v-if="manageOpen" :sites="sites" :miniapps="miniapps" :entries="otherEntries" :preferences="preferences" :busy="managingMiniapp" @preferences="updatePreferences" @close="manageOpen = false" @edit="site => { manageOpen = false; editSite(site) }" @site-visible="(site, visible) => site.visible = visible" @permissions="openPermissions" @revoke="item => manageMiniapp(item, 'revoke')" @uninstall="item => manageMiniapp(item, 'uninstall')" @miniapp-visible="setMiniappVisible" /></FloatingTransition>
@@ -80,6 +80,7 @@ const miniappTabs = ref<Array<{ id: string; name: string; appId: string; viewId:
 const miniappStage = ref<HTMLElement>()
 const openingMiniapp = ref(false)
 const managingMiniapp = ref(false)
+const miniappError = ref(''), installingFromUrl = ref(false)
 const storageLoading = ref(isPlatformApp)
 const storageError = ref('')
 let sdk: MiraAppSdk | undefined
@@ -262,12 +263,22 @@ async function selectMiniapp(event: Event) {
   const input = event.target as HTMLInputElement, file = input.files?.[0]; input.value = ''
   if (!file || !miniappManager || managingMiniapp.value) return
   managingMiniapp.value = true
+  miniappError.value = ''
   try {
     if (file.size > 64 * 1024 * 1024) throw new Error('安装包不能超过 64 MB')
     if (await miniappManager.install(new Uint8Array(await file.arrayBuffer()))) closeSiteDialog()
-  } catch (error) { console.error('安装小程序失败', error) }
+  } catch (error) { miniappError.value = error instanceof Error ? error.message : '安装失败，请重试' }
   finally { managingMiniapp.value = false }
 }
+async function installMiniappFromUrl(url: string) {
+  if (!miniappManager || managingMiniapp.value) return
+  managingMiniapp.value = true; installingFromUrl.value = true; miniappError.value = ''
+  try { if (await miniappManager.installFromUrl(url)) closeSiteDialog() }
+  catch (error) { miniappError.value = error instanceof Error ? error.message : '网址安装失败，请重试' }
+  finally { managingMiniapp.value = false; installingFromUrl.value = false }
+}
+watch(managingMiniapp, busy => { if (!busy && siteDialog.value) void nextTick(() => document.querySelector<HTMLElement>('#add-miniapp-panel input[type="url"]')?.focus()) })
+function openMiniappDocs() { if (managingMiniapp.value) return; closeSiteDialog(); openBrowserTab('https://github.com/MiraWorkspace/workbench-sdk-playground#readme') }
 async function manageMiniapp(item: InstalledMiniapp, action: 'uninstall' | 'revoke') {
   if (!miniappManager || managingMiniapp.value) return
   managingMiniapp.value = true
@@ -460,7 +471,7 @@ function closeMiniapp(id: string) {
 }
 function openAdd() { editingId.value = ''; showSiteDialog() }
 function editSite(site: WebsiteEntry) { editingId.value = site.id; showSiteDialog() }
-function showSiteDialog() { dialogTrigger = document.activeElement instanceof HTMLElement ? document.activeElement : null; siteDialog.value = true }
+function showSiteDialog() { dialogTrigger = document.activeElement instanceof HTMLElement ? document.activeElement : null; miniappError.value = ''; siteDialog.value = true }
 function closeSiteDialog() { siteDialog.value = false; dialogTrigger?.focus() }
 function saveSite(value: { name: string; url: string; iconUrl?: string; cachedIcon?: string }) {
   const target = sites.value.find(site => site.id === editingId.value)

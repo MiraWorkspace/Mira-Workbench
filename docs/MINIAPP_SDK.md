@@ -23,9 +23,40 @@ Workbench 是小程序宿主。包校验、注册表、生命周期、能力授�
 
 注册表和包位于 Workbench 自己的应用文件区：`miniapps/registry.json`、`miniapps/packages/<id>/<release>/`；私有文件位于 `miniapps/data/<id>/`。SQLite 使用 Workbench 内部以小程序 id 命名的 namespace，不使用 Mira 应用身份。
 
+## 从网址安装与发布
+
+在“添加 → 小程序 → 从网址安装”粘贴开发者提供的 **manifest.json 的 HTTPS 直接地址**。Workbench 下载清单和安装包，核对大小、SHA-256 与包内清单，再展示来源及申请权限；确认后沿用本地安装的更新与回滚流程。失败或取消不会替换已安装版本。
+
+线上发布沿用 [Cherry Studio 的分发思路](https://github.com/CherryHQ/cherry-studio-miniapps/blob/main/README.zh-CN.md)：开发者自行托管静态文件，通过 GitHub Topic `workbench-miniapp` 发现项目。在线清单包含完整的包内清单字段，并增加 `package`：
+
+```json
+{
+  "manifestVersion": 1,
+  "id": "demo",
+  "name": "演示小程序",
+  "version": "1.0.0",
+  "entry": "index.html",
+  "requiredCapabilities": ["storage:app"],
+  "update": { "url": "https://example.com/demo/manifest.json" },
+  "package": {
+    "url": "https://example.com/demo/releases/1.0.0/demo.miniapp",
+    "sha256": "填写实际安装包的64位十六进制SHA256摘要",
+    "size": 12345
+  }
+}
+```
+
+- 包内 `miniapp-manifest.json` 也包含相同的 `update.url`，不包含 `package`。支持的名称、版本、入口、图标、权限及更新地址必须与在线清单一致。
+- `update.url` 必须等于用户输入的安装地址；清单和包使用同一 HTTPS origin，不含账号密码或 URL 片段，不接受重定向。不能直接使用 GitHub 仓库网页或会重定向的 Release 附件地址；推荐 GitHub Pages 或静态文件服务器。
+- 清单最多 64 KiB，包最多 64 MiB；`size` 是下载包的字节数，`sha256` 根据最终包计算。使用按版本分隔的包路径，已发布的版本文件保持不变。
+- Workbench 通过 SDK 0.4.0 的 `workbench.fetchMiniappResource(url, kind)` 调用 Mira API 1.4 的受限下载接口。接口仅向 Workbench 开放，不提供给小程序；Mira 限制 HTTPS、重定向、大小及超时，并拒绝已识别的本机/内网地址。安装规则和权限决策仍属于 Workbench。
+- 当前通过重新提交清单地址手动安装较高 SemVer 版本；不自动检查或下载更新。
+
+官方可运行示例与发布脚本：[workbench-sdk-playground](https://github.com/MiraWorkspace/workbench-sdk-playground)。安装地址：`https://miraworkspace.github.io/workbench-sdk-playground/manifest.json`。
+
 ## 小程序连接
 
-网页可以将 `@mira/app-sdk` 0.3.0 的客户端打包到小程序，使用 `connectMiraApp()` 建立兼容消息通道；此时对端为 **Workbench**，不是 Mira 平台分发器。`context.get()` 返回 `{ appId, host: 'workbench', apiVersion: { major: 1, minor: 2 }, capabilities }`。客户端名字保留传输兼容性，不代表小程序获得 Mira 身份。
+网页可以将 `@mira/app-sdk` 0.4.0 的客户端打包到小程序，使用 `connectMiraApp()` 建立兼容消息通道；此时对端为 **Workbench**，不是 Mira 平台分发器。`context.get()` 返回 `{ appId, host: 'workbench', apiVersion: { major: 1, minor: 2 }, capabilities }`。客户端名字保留传输兼容性，不代表小程序获得 Mira 身份。
 
 | 声明能力 | 可调用方法 |
 | --- | --- |
@@ -45,7 +76,7 @@ Workbench 是小程序宿主。包校验、注册表、生命周期、能力授�
 
 公开客户端方法与类型统一维护在 [Mira-App-SDK](https://github.com/MiraWorkspace/Mira-App-SDK)。Workbench 依赖该 SDK 来调用 Mira；小程序如复用同一客户端，仅复用消息运输，对端仍是 Workbench。调用链为：小程序 → Workbench 逐次校验权限 → Workbench 的 Mira SDK → Mira 宿主模型服务。小程序不能传入密钥、API 地址或身份来替换宿主配置。
 
-当前使用 SDK 0.3.0、Mira API 1.3 和 Workbench 小程序 API 1.2。SDK 0.3.0 已通过 GitHub 标签 `v0.3.0` 分发，尚未发布到 npm。依赖固定为 `github:MiraWorkspace/Mira-App-SDK#v0.3.0`，锁文件记录确切提交，不再使用临时本地包。更新小程序前，需要更新 Mira 与 Workbench，不能只替换网页中的 SDK 文件。
+当前使用 SDK 0.4.0、Mira API 1.4 和 Workbench 小程序 API 1.2。SDK 0.4.0 已通过 GitHub 标签 `v0.4.0` 分发，尚未发布到 npm。依赖固定为 `github:MiraWorkspace/Mira-App-SDK#v0.4.0`，锁文件记录确切提交，不再使用临时本地包。更新小程序前，需要更新 Mira 与 Workbench，不能只替换网页中的 SDK 文件。
 
 ```ts
 const providers = await sdk.models.listProviders()
@@ -92,4 +123,4 @@ AI 决定查询词、读取网页和是否继续检索；宿主自动选择搜�
 
 ## 本地验证
 
-`npm test` 覆盖包路径校验、安装、更新失败回退、存储隔离、目录只读限制、越权拒绝、撤权与迟到结果。Mira 仓库的 `tests/workbenchPlatformElectron.test.ts` 使用临时用户目录验证实际 Workbench 页面、Mira 底层通道和隔离小程序页面。
+`npm test` 覆盖分发清单、同源限制、摘要/大小/包内信息校验、网址安装取消、旧宿主提示、包路径校验、安装、更新失败回退、存储隔离、目录只读限制、越权拒绝、撤权与迟到结果。Mira 仓库的 `tests/workbenchPlatformElectron.test.ts` 使用临时用户目录验证实际 Workbench 页面、Mira 底层通道和隔离小程序页面。

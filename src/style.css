@@ -149,7 +149,8 @@ h1, h2, p { margin-top: 0; }
 .miniapp-upload p { margin: 0 0 16px; color: #68736c; font-size: 12px; line-height: 1.8; }
 .miniapp-upload .miniapp-unavailable { margin: 14px 0 0; }
 .miniapp-url { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; color: var(--text); font-size: 12px; }
-.miniapp-coming-soon { color: var(--text-muted); }
+.miniapp-url-hint { margin: 8px 0 0; color: var(--text-muted); font-size: 12px; line-height: 1.6; }
+.review-source { overflow-wrap: anywhere; color: var(--text-muted); font-size: 12px; line-height: 1.6; }
 .miniapp-url input:disabled { opacity: .7; cursor: not-allowed; }
 .miniapp-notice { margin: 16px 0 0; color: var(--accent); font-size: 12px; line-height: 1.6; }
 .add-dialog #add-miniapp-panel > .form-error { margin-top: 16px; }

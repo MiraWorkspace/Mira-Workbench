@@ -4,7 +4,14 @@ export type MiniappCapability = typeof miniappCapabilities[number]
 export const capabilityLabels: Record<MiniappCapability, string> = {
   'storage:app': '读写此小程序的独立数据', 'appearance:read': '读取并跟随主题', 'models:generate': '调用模型（可能产生费用）', 'web:search': '联网搜索并读取公开网页（会发送关键词和目标网址）', 'notifications:send': '发送通知', 'files:read': '读取你授权的目录', 'files:write': '修改你授权的目录',
 }
-export interface MiniappManifest { manifestVersion: 1; id: string; name: string; version: string; entry: string; icon?: string; requiredCapabilities: MiniappCapability[] }
+export interface MiniappManifest { manifestVersion: 1; id: string; name: string; version: string; entry: string; icon?: string; update?: { url: string }; requiredCapabilities: MiniappCapability[] }
+export function distributionUrl(value: unknown): string {
+  if (typeof value !== 'string' || value.length > 8192) throw new Error('请输入有效的 HTTPS 安装清单地址')
+  let url: URL
+  try { url = new URL(value) } catch { throw new Error('请输入有效的 HTTPS 安装清单地址') }
+  if (url.protocol !== 'https:' || url.username || url.password || url.hash) throw new Error('安装地址必须使用不含账号密码和片段的 HTTPS 网址')
+  return url.href
+}
 export function packagePath(value: unknown): string {
   if (typeof value !== 'string' || !value || value.length > 512 || /[\\\x00-\x1f:]/.test(value) || value.startsWith('/') || value.split('/').some(part => !part || part === '.' || part === '..' || /[. ]$/.test(part) || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(part))) throw new Error('包内路径无效')
   return value
@@ -35,7 +42,12 @@ export function parseManifest(value: unknown): MiniappManifest {
   if (item.test) throw new Error('不能安装测试应用')
   const requested = item.requiredCapabilities
   if (!Array.isArray(requested) || requested.some(cap => !miniappCapabilities.includes(cap)) || new Set(requested).size !== requested.length) throw new Error('小程序申请了不支持的权限')
-  return { manifestVersion: 1, id: item.id, name: item.name.trim(), version: item.version, entry: packagePath(item.entry), ...(item.icon ? { icon: packagePath(item.icon) } : {}), requiredCapabilities: [...requested].sort() }
+  let update: { url: string } | undefined
+  if (item.update !== undefined) {
+    if (!item.update || typeof item.update !== 'object' || Array.isArray(item.update)) throw new Error('更新清单地址无效')
+    update = { url: distributionUrl((item.update as Record<string, unknown>).url) }
+  }
+  return { manifestVersion: 1, id: item.id, name: item.name.trim(), version: item.version, entry: packagePath(item.entry), ...(item.icon ? { icon: packagePath(item.icon) } : {}), ...(update ? { update } : {}), requiredCapabilities: [...requested].sort() }
 }
 export function inspectPackage(bytes: Uint8Array) {
   if (!bytes.length || bytes.length > 64 * 1024 * 1024) throw new Error('安装包不能超过 64 MB')

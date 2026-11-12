@@ -1,9 +1,10 @@
 import type { DirectoryGrant, MiraAppSdk, ViewRequest, AppMigration, AppOperation, ChatRequest, ModelRequest, WebSearchRequest } from '@mira/app-sdk'
 import { capabilityLabels, compareVersions, inspectPackage, packagePath, parseManifest, type MiniappCapability, type MiniappManifest } from './package.ts'
+import { readDistribution } from './distribution.ts'
 
 export interface InstalledMiniapp { id: string; name: string; icon?: string; manifest: MiniappManifest; release: string; approved: MiniappCapability[]; reviewed: boolean; directories: DirectoryGrant[]; enabled: boolean }
 interface Registry { version: 1; migrated: boolean; items: InstalledMiniapp[] }
-export interface ReviewRequest { title: string; message: string; permissions?: string[]; confirm: string }
+export interface ReviewRequest { title: string; message: string; source?: string; permissions?: string[]; confirm: string }
 const registryPath = 'miniapps/registry.json'
 const encode = (value: unknown) => new TextEncoder().encode(JSON.stringify(value))
 const decode = (data: Uint8Array) => JSON.parse(new TextDecoder().decode(data))
@@ -58,10 +59,18 @@ export class MiniappManager {
     try { return await operation() } finally { this.busy = false }
   }
   async install(bytes: Uint8Array) { return this.exclusive(() => this.installPackage(bytes)) }
-  private async installPackage(bytes: Uint8Array, migrating = false) {
+  async installFromUrl(url: string) {
+    return this.exclusive(async () => {
+      const context = await this.sdk.context.get()
+      if (context.apiVersion.major !== 1 || context.apiVersion.minor < 4) throw new Error('网址安装需要 Mira API 1.4，请先更新 Mira')
+      const result = await readDistribution(url, (value, kind) => this.sdk.workbench.fetchMiniappResource(value, kind))
+      return this.installPackage(result.bytes, false, result.url)
+    })
+  }
+  private async installPackage(bytes: Uint8Array, migrating = false, source?: string) {
     const { manifest, files } = inspectPackage(bytes), previous = this.state.items.find(item => item.id === manifest.id)
     if (previous && compareVersions(manifest.version, previous.manifest.version) <= 0) throw new Error('更新版本必须高于已安装版本')
-    if (!migrating && !await this.review({ title: previous ? '更新小程序' : '安装小程序', message: `${manifest.name} ${manifest.version}${previous ? `（当前 ${previous.manifest.version}）` : ''}`, permissions: manifest.requiredCapabilities.map(cap => capabilityLabels[cap]), confirm: previous ? '更新并授权' : '安装并授权' })) return false
+    if (!migrating && !await this.review({ title: previous ? '更新小程序' : '安装小程序', message: `${manifest.name} ${manifest.version}${previous ? `（当前 ${previous.manifest.version}）` : ''}`, source, permissions: manifest.requiredCapabilities.map(cap => capabilityLabels[cap]), confirm: previous ? '更新并授权' : '安装并授权' })) return false
     const release = `miniapps/packages/${manifest.id}/${crypto.randomUUID()}`
     try {
       for (const [path, data] of Object.entries(files)) await this.sdk.files.write({ path: `${release}/${path}`, data })

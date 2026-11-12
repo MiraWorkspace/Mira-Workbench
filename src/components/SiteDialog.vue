@@ -1,9 +1,9 @@
 <template>
-  <div class="dialog-backdrop dialog-backdrop--floating" @click.self="$emit('close')" @keydown.esc.stop="$emit('close')">
+  <div class="dialog-backdrop dialog-backdrop--floating" @click.self="requestClose" @keydown.esc.stop="requestClose">
     <section ref="dialog" class="site-dialog add-dialog" role="dialog" aria-modal="true" aria-labelledby="site-dialog-title" tabindex="-1" @keydown.tab="trapFocus">
-      <div class="dialog-heading"><h2 id="site-dialog-title">{{ site ? '编辑网站' : '添加' }}</h2><button class="icon-button" type="button" aria-label="关闭" @click="$emit('close')"><X :size="17" /></button></div>
+      <div class="dialog-heading"><h2 id="site-dialog-title">{{ site ? '编辑网站' : '添加' }}</h2><button class="icon-button" type="button" aria-label="关闭" :disabled="managingMiniapp" @click="requestClose"><X :size="17" /></button></div>
       <div v-if="!site" class="add-tabs" role="tablist" aria-label="新增类型">
-        <button id="add-website-tab" type="button" role="tab" :aria-selected="addType === 'website'" aria-controls="add-website-panel" :tabindex="addType === 'website' ? 0 : -1" @click="addType = 'website'" @keydown.right.prevent="selectAddType('miniapp')" @keydown.left.prevent="selectAddType('miniapp')"><Globe :size="17" />网站</button>
+        <button id="add-website-tab" type="button" role="tab" :disabled="managingMiniapp" :aria-selected="addType === 'website'" aria-controls="add-website-panel" :tabindex="addType === 'website' ? 0 : -1" @click="addType = 'website'" @keydown.right.prevent="selectAddType('miniapp')" @keydown.left.prevent="selectAddType('miniapp')"><Globe :size="17" />网站</button>
         <button id="add-miniapp-tab" type="button" role="tab" :aria-selected="addType === 'miniapp'" aria-controls="add-miniapp-panel" :tabindex="addType === 'miniapp' ? 0 : -1" @click="addType = 'miniapp'" @keydown.right.prevent="selectAddType('website')" @keydown.left.prevent="selectAddType('website')"><Package :size="17" />小程序</button>
       </div>
       <form v-show="addType === 'website'" id="add-website-panel" :role="site ? undefined : 'tabpanel'" :aria-labelledby="site ? undefined : 'add-website-tab'" @submit.prevent="save">
@@ -18,10 +18,15 @@
         <div class="dialog-actions"><button v-if="site && !site.builtin" class="delete-button" type="button" @click="$emit('delete', site)">删除网站</button><span class="dialog-spacer"></span><button class="cancel-button" type="button" @click="$emit('close')">取消</button><button class="add-button" type="submit" :disabled="uploading || fetching || !form.name || !form.url"><Check :size="15" />保存</button></div>
       </form>
       <div v-if="addType === 'miniapp'" id="add-miniapp-panel" role="tabpanel" aria-labelledby="add-miniapp-tab">
-        <div class="miniapp-info"><Package :size="20" /><span>安装授权后可以调用本地能力</span><button class="miniapp-docs" type="button" disabled title="开发文档即将开放">开发文档 <ExternalLink :size="14" /></button></div>
+        <div class="miniapp-info"><Package :size="20" /><span>安装授权后可以调用本地能力</span><button class="miniapp-docs" type="button" :disabled="managingMiniapp" @click="$emit('open-docs')">开发文档 <ExternalLink :size="14" /></button></div>
         <input ref="miniappInput" class="logo-file-input" type="file" accept=".miniapp,.zip" aria-label="选择小程序安装包" @change="$emit('select-miniapp', $event)" /><div class="miniapp-upload"><p>选择一个 .miniapp 或 .zip 安装包，安装前会展示它申请的权限。</p><button class="cancel-button" type="button" :disabled="!isPlatformApp || managingMiniapp" @click="miniappInput?.click()"><Upload :size="15" />{{ managingMiniapp ? '正在安装…' : '选择文件…' }}</button><p v-if="!isPlatformApp" class="miniapp-unavailable">请在 Mira 桌面应用中安装小程序。</p></div>
-        <label class="miniapp-url"><span>或从网址安装 <span class="miniapp-coming-soon">（即将开放）</span></span><input type="url" placeholder="https://example.com/myapp/manifest.json" disabled /></label>
-        <div class="dialog-actions"><span class="dialog-spacer"></span><button class="cancel-button" type="button" @click="$emit('close')">取消</button></div>
+        <form @submit.prevent="$emit('install-url', miniappUrl)">
+          <label class="miniapp-url"><span>或从网址安装</span><input v-model.trim="miniappUrl" type="url" placeholder="https://example.com/myapp/manifest.json" aria-describedby="miniapp-url-hint" :disabled="managingMiniapp" maxlength="8192" required /></label>
+          <p id="miniapp-url-hint" class="manage-copy miniapp-url-hint">粘贴开发者提供的 HTTPS 安装清单地址，校验后确认权限。</p>
+          <p v-if="miniappError" class="form-error" role="alert">{{ miniappError }}</p>
+          <p v-if="installingFromUrl" class="miniapp-notice" role="status">正在下载并校验安装包，请稍候…</p>
+          <div class="dialog-actions"><span class="dialog-spacer"></span><button class="cancel-button" type="button" :disabled="managingMiniapp" @click="requestClose">取消</button><button class="add-button" type="submit" :disabled="!isPlatformApp || managingMiniapp || !miniappUrl"><LoaderCircle v-if="installingFromUrl" class="tab-loading-indicator" :size="15" />从网址安装</button></div>
+        </form>
       </div>
     </section>
   </div>
@@ -33,10 +38,12 @@ import { Check, ExternalLink, Globe, LoaderCircle, Package, Upload, X } from 'lu
 import BrandMark from './BrandMark.vue'
 import type { WebsiteEntry } from '../data/sites'
 
-const props = defineProps<{ site?: WebsiteEntry; sites: WebsiteEntry[]; loadIcon: (url: string) => Promise<string | undefined>; isPlatformApp: boolean; managingMiniapp: boolean }>()
-const emit = defineEmits<{ close: []; save: [value: { name: string; url: string; iconUrl?: string; cachedIcon?: string }]; delete: [site: WebsiteEntry]; 'select-miniapp': [event: Event] }>()
+const props = defineProps<{ site?: WebsiteEntry; sites: WebsiteEntry[]; loadIcon: (url: string) => Promise<string | undefined>; isPlatformApp: boolean; managingMiniapp: boolean; miniappError: string; installingFromUrl: boolean }>()
+const emit = defineEmits<{ close: []; save: [value: { name: string; url: string; iconUrl?: string; cachedIcon?: string }]; delete: [site: WebsiteEntry]; 'select-miniapp': [event: Event]; 'install-url': [url: string]; 'open-docs': [] }>()
 const dialog = ref<HTMLElement>(), logoInput = ref<HTMLInputElement>(), miniappInput = ref<HTMLInputElement>()
 const addType = ref<'website' | 'miniapp'>('website')
+const miniappUrl = ref('')
+function requestClose() { if (!props.managingMiniapp) emit('close') }
 const form = ref({ name: props.site?.name || '', url: props.site?.url || '', iconUrl: props.site?.iconUrl || '' })
 const error = ref(''), uploading = ref(false), fetching = ref(false)
 const preview = ref<{ url: string; icon?: string }>()
@@ -58,7 +65,7 @@ watch([addType, () => form.value.url, () => form.value.iconUrl, uploading], (_va
   }, 500)
   onCleanup(() => { cancelled = true; window.clearTimeout(timer) })
 }, { immediate: true })
-function selectAddType(type: 'website' | 'miniapp') { addType.value = type; void nextTick(() => document.getElementById(`add-${type}-tab`)?.focus()) }
+function selectAddType(type: 'website' | 'miniapp') { if (props.managingMiniapp) return; addType.value = type; void nextTick(() => document.getElementById(`add-${type}-tab`)?.focus()) }
 function trapFocus(event: KeyboardEvent) {
   const controls = [...(dialog.value?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), [tabindex="0"]') || [])].filter(element => element.offsetParent !== null && element.tabIndex >= 0)
   const first = controls[0], last = controls.at(-1)
