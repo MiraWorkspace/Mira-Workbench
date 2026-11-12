@@ -29,7 +29,7 @@ Workbench 是小程序宿主。包校验、注册表、生命周期、能力授�
 
 在“添加 → 小程序 → 从网址安装”粘贴开发者提供的 **manifest.json 的 HTTPS 直接地址**。Workbench 下载清单和安装包，核对大小、SHA-256 与包内清单，再展示来源及申请权限；确认后沿用本地安装的更新与回滚流程。失败或取消不会替换已安装版本。
 
-线上发布沿用 [Cherry Studio 的分发思路](https://github.com/CherryHQ/cherry-studio-miniapps/blob/main/README.zh-CN.md)：开发者自行托管静态文件，通过 GitHub Topic `workbench-miniapp` 发现项目。在线清单包含完整的包内清单字段，并增加 `package`：
+开发者自行托管发布清单与安装包，通过 GitHub Topic `workbench-miniapp` 发现项目。在线清单包含完整的包内清单字段，并增加 `package`：
 
 ```json
 {
