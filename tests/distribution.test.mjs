@@ -31,3 +31,10 @@ test('rejects tampered bytes, mismatched versions and permissions without return
 test('reports HTML and malformed or oversized manifests as errors', async () => {
   for (const raw of [strToU8('<html>Github page</html>'), strToU8('null'), strToU8('{}'), new Uint8Array(65537)]) await assert.rejects(readDistribution(url, async () => raw))
 })
+
+test('online description must match the package description; old packages remain valid', async () => {
+  const description = '了解 SDK 调用能力'
+  const matching = await fixture({ description }, {}, { ...manifest, description })
+  assert.deepEqual((await readDistribution(url, matching.read)).bytes, matching.bytes)
+  for (const f of [await fixture({ description }), await fixture({}, {}, { ...manifest, description }), await fixture({ description }, {}, { ...manifest, description: '不同的功能说明' })]) await assert.rejects(readDistribution(url, f.read), /不一致/)
+})

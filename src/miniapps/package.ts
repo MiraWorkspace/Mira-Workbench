@@ -4,7 +4,7 @@ export type MiniappCapability = typeof miniappCapabilities[number]
 export const capabilityLabels: Record<MiniappCapability, string> = {
   'storage:app': '读写此小程序的独立数据', 'appearance:read': '读取并跟随主题', 'models:generate': '调用模型（可能产生费用）', 'web:search': '联网搜索并读取公开网页（会发送关键词和目标网址）', 'notifications:send': '发送通知', 'files:read': '读取你授权的目录', 'files:write': '修改你授权的目录',
 }
-export interface MiniappManifest { manifestVersion: 1; id: string; name: string; version: string; entry: string; icon?: string; update?: { url: string }; requiredCapabilities: MiniappCapability[] }
+export interface MiniappManifest { manifestVersion: 1; id: string; name: string; description?: string; version: string; entry: string; icon?: string; update?: { url: string }; requiredCapabilities: MiniappCapability[] }
 export function distributionUrl(value: unknown): string {
   if (typeof value !== 'string' || value.length > 8192) throw new Error('请输入有效的 HTTPS 安装清单地址')
   let url: URL
@@ -37,6 +37,7 @@ export function parseManifest(value: unknown): MiniappManifest {
   const item = value as Record<string, unknown>
   if (!item || item.manifestVersion !== 1 || typeof item.id !== 'string' || !/^[a-z][a-z0-9-]{0,63}$/.test(item.id) || ['mira-workbench', 'mira-workbench-test', 'mira-harness'].includes(item.id)) throw new Error('小程序清单或 ID 无效')
   if (typeof item.name !== 'string' || !item.name.trim() || item.name.length > 80 || /[\x00-\x1f\x7f]/.test(item.name)) throw new Error('小程序名称无效')
+  if (item.description !== undefined && (typeof item.description !== 'string' || !item.description.trim() || item.description.length > 500 || /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(item.description))) throw new Error('小程序简介必须为非空文本，最多 500 字符，不能包含控制字符')
   if (typeof item.version !== 'string') throw new Error('小程序版本无效')
   compareVersions(item.version, item.version)
   if (item.test) throw new Error('不能安装测试应用')
@@ -47,7 +48,7 @@ export function parseManifest(value: unknown): MiniappManifest {
     if (!item.update || typeof item.update !== 'object' || Array.isArray(item.update)) throw new Error('更新清单地址无效')
     update = { url: distributionUrl((item.update as Record<string, unknown>).url) }
   }
-  return { manifestVersion: 1, id: item.id, name: item.name.trim(), version: item.version, entry: packagePath(item.entry), ...(item.icon ? { icon: packagePath(item.icon) } : {}), ...(update ? { update } : {}), requiredCapabilities: [...requested].sort() }
+  return { manifestVersion: 1, id: item.id, name: item.name.trim(), ...(typeof item.description === 'string' ? { description: item.description.trim() } : {}), version: item.version, entry: packagePath(item.entry), ...(item.icon ? { icon: packagePath(item.icon) } : {}), ...(update ? { update } : {}), requiredCapabilities: [...requested].sort() }
 }
 export function inspectPackage(bytes: Uint8Array) {
   if (!bytes.length || bytes.length > 64 * 1024 * 1024) throw new Error('安装包不能超过 64 MB')

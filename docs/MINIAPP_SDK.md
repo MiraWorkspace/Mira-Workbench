@@ -13,13 +13,14 @@ Workbench 是小程序宿主。包校验、注册表、生命周期、能力授�
   "manifestVersion": 1,
   "id": "notes",
   "name": "笔记",
+  "description": "记录和整理工作笔记。",
   "version": "1.0.0",
   "entry": "index.html",
   "requiredCapabilities": ["storage:app", "files:read", "files:write"]
 }
 ```
 
-可选 `icon` 是包内图片路径。安装包上限 64 MiB，解压上限 256 MiB、10000 项。校验路径、重复路径、保留 ID、版本和权限列表；不接受 Mira 管理权限或创建更多视图的能力。小程序不是 Mira 第一方子应用。
+可选 `description` 是安装确认时展示的简介，去除首尾空白后非空，原始长度最多 500 字符，允许换行和制表符，其他控制字符不允许；旧包可省略。可选 `icon` 是包内图片路径。安装包上限 64 MiB，解压上限 256 MiB、10000 项。校验路径、重复路径、保留 ID、版本和权限列表；不接受 Mira 管理权限或创建更多视图的能力。小程序不是 Mira 第一方子应用。
 
 同 ID 的较高 SemVer 版本执行更新，用户确认所需权限后，先写入独立版本目录，再关闭旧视图并原子提交注册表。文件写入或注册表失败保留原版本。更新无需重启 Mira。卸载关闭视图、撤销目录句柄、删除当前版本，保留独立业务数据。重新安装不会恢复已撤销的目录授权。
 
@@ -48,7 +49,7 @@ Workbench 是小程序宿主。包校验、注册表、生命周期、能力授�
 }
 ```
 
-- 包内 `miniapp-manifest.json` 也包含相同的 `update.url`，不包含 `package`。支持的名称、版本、入口、图标、权限及更新地址必须与在线清单一致。
+- 包内 `miniapp-manifest.json` 也包含相同的 `update.url`，不包含 `package`。支持的名称、简介、版本、入口、图标、权限及更新地址必须与在线清单一致。
 - `update.url` 必须等于用户输入的安装地址；清单和包使用同一 HTTPS origin，不含账号密码或 URL 片段，不接受重定向。不能直接使用 GitHub 仓库网页或会重定向的 Release 附件地址；推荐 GitHub Pages 或静态文件服务器。
 - 清单最多 64 KiB，包最多 64 MiB；`size` 是下载包的字节数，`sha256` 根据最终包计算。使用按版本分隔的包路径，已发布的版本文件保持不变。
 - Workbench 通过 SDK 0.4.0 的 `workbench.fetchMiniappResource(url, kind)` 调用 Mira API 1.4 的受限下载接口。接口仅向 Workbench 开放，不提供给小程序；Mira 限制 HTTPS、重定向、大小及超时，并拒绝已识别的本机/内网地址。安装规则和权限决策仍属于 Workbench。

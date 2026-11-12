@@ -59,6 +59,30 @@ test('Workbench validates packages and rejects traversal, reserved identity and 
   assert.throws(() => inspectPackage(pack({ entry: 'missing.html' })), /不存在/)
 })
 
+test('optional descriptions validate and survive package review, installation and reload', async () => {
+  assert.equal(inspectPackage(pack()).manifest.description, undefined)
+  for (const description of ['', '  ', 42, null, 'x'.repeat(501), 'bad\u0000text']) assert.throws(() => inspectPackage(pack({ description })), /简介/)
+  const description = '展示 SDK 能力。\n通过示例了解权限边界。', icon = '<svg xmlns="http://www.w3.org/2000/svg"/>'
+  const f = fixture(); await f.manager.initialize()
+  const bytes = pack({ description: '  ' + description + '  ', icon: 'icon.svg' }, { 'icon.svg': strToU8(icon) })
+  const before = f.files.size
+  f.confirm = false; await f.manager.install(bytes)
+  assert.equal(f.files.size, before)
+  assert.equal(f.reviews.at(-1).manifest.description, description)
+  assert.equal(f.reviews.at(-1).manifest.id, manifest.id)
+  assert.match(f.reviews.at(-1).icon, /^data:image\/svg\+xml;base64,/)
+  assert.deepEqual(f.reviews.at(-1).permissions, [...manifest.requiredCapabilities].sort())
+  f.confirm = true; await f.manager.install(bytes)
+  assert.equal(f.items[0].manifest.description, description)
+  assert.equal(f.items[0].icon, f.reviews.at(-1).icon)
+  await f.manager.initialize(); assert.equal(f.items[0].manifest.description, description)
+  await f.manager.install(pack({ version: '1.1.0' }))
+  assert.equal(f.reviews.at(-1).currentVersion, '1.0.0')
+  assert.equal(f.reviews.at(-1).manifest.description, undefined)
+  await f.manager.setPermissions('notes', []); await f.manager.setPermissions('notes', ['storage:app'])
+  assert.deepEqual(f.reviews.at(-1).permissions, ['storage:app'])
+})
+
 test('Workbench installs, opens, updates immediately, retains data and uninstalls without any platform app lifecycle API', async () => {
   const f = fixture(); await f.manager.initialize()
   f.confirm = false; assert.equal(await f.manager.install(pack()), false); assert.equal(f.items.length, 0)

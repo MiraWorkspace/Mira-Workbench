@@ -20,6 +20,6 @@ export async function readDistribution(value: string, read: MiniappResourceReade
   if (bytes.length !== pkg.size) throw new Error('安装包大小与发布清单不一致，请联系发布者')
   const digest = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new Uint8Array(bytes))), byte => byte.toString(16).padStart(2, '0')).join('')
   if (digest !== pkg.sha256.toLowerCase()) throw new Error('安装包 SHA-256 校验失败，请联系发布者')
-  if (JSON.stringify(inspectPackage(bytes).manifest) !== JSON.stringify(manifest)) throw new Error('包内名称、版本、入口、权限或更新信息与发布清单不一致')
+  if (JSON.stringify(inspectPackage(bytes).manifest) !== JSON.stringify(manifest)) throw new Error('包内名称、简介、版本、入口、权限或更新信息与发布清单不一致')
   return { bytes, url }
 }

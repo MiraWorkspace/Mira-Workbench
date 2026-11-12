@@ -1,10 +1,10 @@
 import type { DirectoryGrant, MiraAppSdk, ViewRequest, AppMigration, AppOperation, ChatRequest, ModelRequest, WebSearchRequest } from '@mira/app-sdk'
-import { capabilityLabels, compareVersions, inspectPackage, packagePath, parseManifest, type MiniappCapability, type MiniappManifest } from './package.ts'
+import { compareVersions, inspectPackage, packagePath, parseManifest, type MiniappCapability, type MiniappManifest } from './package.ts'
 import { readDistribution } from './distribution.ts'
 
 export interface InstalledMiniapp { id: string; name: string; icon?: string; manifest: MiniappManifest; release: string; approved: MiniappCapability[]; reviewed: boolean; directories: DirectoryGrant[]; enabled: boolean }
 interface Registry { version: 1; migrated: boolean; items: InstalledMiniapp[] }
-export interface ReviewRequest { title: string; message: string; source?: string; permissions?: string[]; confirm: string }
+export interface ReviewRequest { title: string; manifest: MiniappManifest; icon?: string; currentVersion?: string; source?: string; permissions: MiniappCapability[]; confirm: string }
 const registryPath = 'miniapps/registry.json'
 const encode = (value: unknown) => new TextEncoder().encode(JSON.stringify(value))
 const decode = (data: Uint8Array) => JSON.parse(new TextDecoder().decode(data))
@@ -70,15 +70,15 @@ export class MiniappManager {
   private async installPackage(bytes: Uint8Array, migrating = false, source?: string) {
     const { manifest, files } = inspectPackage(bytes), previous = this.state.items.find(item => item.id === manifest.id)
     if (previous && compareVersions(manifest.version, previous.manifest.version) <= 0) throw new Error('更新版本必须高于已安装版本')
-    if (!migrating && !await this.review({ title: previous ? '更新小程序' : '安装小程序', message: `${manifest.name} ${manifest.version}${previous ? `（当前 ${previous.manifest.version}）` : ''}`, source, permissions: manifest.requiredCapabilities.map(cap => capabilityLabels[cap]), confirm: previous ? '更新并授权' : '安装并授权' })) return false
+    let icon: string | undefined
+    if (manifest.icon && files[manifest.icon].length <= 1024 * 1024) {
+      const ext = manifest.icon.split('.').pop()?.toLowerCase(), mime = ({ png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', svg: 'image/svg+xml', webp: 'image/webp', ico: 'image/x-icon' } as Record<string, string>)[ext || '']
+      if (mime) { let binary = ''; for (const byte of files[manifest.icon]) binary += String.fromCharCode(byte); icon = `data:${mime};base64,${btoa(binary)}` }
+    }
+    if (!migrating && !await this.review({ title: previous ? '更新小程序' : '安装小程序', manifest, icon, currentVersion: previous?.manifest.version, source: source ?? '本地安装包', permissions: manifest.requiredCapabilities, confirm: previous ? '更新并授权' : '安装并授权' })) return false
     const release = `miniapps/packages/${manifest.id}/${crypto.randomUUID()}`
     try {
       for (const [path, data] of Object.entries(files)) await this.sdk.files.write({ path: `${release}/${path}`, data })
-      let icon: string | undefined
-      if (manifest.icon && files[manifest.icon].length <= 1024 * 1024) {
-        const ext = manifest.icon.split('.').pop()?.toLowerCase(), mime = ({ png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', svg: 'image/svg+xml', webp: 'image/webp', ico: 'image/x-icon' } as Record<string, string>)[ext || '']
-        if (mime) { let binary = ''; for (const byte of files[manifest.icon]) binary += String.fromCharCode(byte); icon = `data:${mime};base64,${btoa(binary)}` }
-      }
       if (previous) await this.stop(previous.id)
       const item: InstalledMiniapp = { id: manifest.id, name: manifest.name, manifest, release, icon, approved: migrating ? [] : manifest.requiredCapabilities, reviewed: !migrating, directories: previous?.directories ?? [], enabled: true }
       const before = this.state.items
@@ -99,7 +99,7 @@ export class MiniappManager {
     const existing = [...this.running].find(([, running]) => running === item)
     if (existing && !duplicate) return existing[0]
     if (!item.reviewed) {
-      if (!await this.review({ title: '小程序权限', message: item.name, permissions: item.manifest.requiredCapabilities.map(cap => capabilityLabels[cap]), confirm: '允许并打开' })) return
+      if (!await this.review({ title: '小程序权限', manifest: { ...item.manifest, name: item.name }, icon: item.icon, permissions: item.manifest.requiredCapabilities, confirm: '允许并打开' })) return
       const before = { approved: item.approved, reviewed: item.reviewed }
       item.approved = [...item.manifest.requiredCapabilities]; item.reviewed = true
       try { await this.persist() } catch (error) { Object.assign(item, before); throw error }
@@ -128,7 +128,7 @@ export class MiniappManager {
     return this.exclusive(async () => {
       const item = this.item(id)
       if (permissions.some(cap => !item.manifest.requiredCapabilities.includes(cap))) throw new Error('不能授权未声明的能力')
-      if (permissions.some(cap => !item.approved.includes(cap)) && !await this.review({ title: '修改小程序权限', message: item.name, permissions: permissions.map(cap => capabilityLabels[cap]), confirm: '允许' })) return
+      if (permissions.some(cap => !item.approved.includes(cap)) && !await this.review({ title: '修改小程序权限', manifest: { ...item.manifest, name: item.name }, icon: item.icon, permissions, confirm: '允许' })) return
       await this.stop(id)
       const before = { approved: item.approved, reviewed: item.reviewed }
       item.approved = [...permissions]; item.reviewed = true
