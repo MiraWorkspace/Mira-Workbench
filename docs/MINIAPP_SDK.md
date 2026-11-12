@@ -1,5 +1,7 @@
 # Workbench 小程序宿主与 SDK
 
+面向小程序开发者的快速开始、包格式、SDK 与发布规范统一维护在 [Mira-Workbench-miniapps](https://github.com/MiraWorkspace/Mira-Workbench-miniapps)。本文保留 Workbench 宿主实现、迁移及测试说明。
+
 Workbench 是小程序宿主。包校验、注册表、生命周期、能力授权和目录读写权限位于 `src/miniapps/`；Mira 仅通过通用 SDK 提供文件、SQLite namespace、隔离视图和原生能力。
 
 ## 安装包

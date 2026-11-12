@@ -278,7 +278,7 @@ async function installMiniappFromUrl(url: string) {
   finally { managingMiniapp.value = false; installingFromUrl.value = false }
 }
 watch(managingMiniapp, busy => { if (!busy && siteDialog.value) void nextTick(() => document.querySelector<HTMLElement>('#add-miniapp-panel input[type="url"]')?.focus()) })
-function openMiniappDocs() { if (managingMiniapp.value) return; closeSiteDialog(); openBrowserTab('https://github.com/MiraWorkspace/workbench-sdk-playground#readme') }
+function openMiniappDocs() { if (managingMiniapp.value) return; closeSiteDialog(); openBrowserTab('https://github.com/MiraWorkspace/Mira-Workbench-miniapps#readme') }
 async function manageMiniapp(item: InstalledMiniapp, action: 'uninstall' | 'revoke') {
   if (!miniappManager || managingMiniapp.value) return
   managingMiniapp.value = true
