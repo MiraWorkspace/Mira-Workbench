@@ -8,6 +8,10 @@
           <span class="site-icon"><BrandMark v-if="entry.type === 'website'" :brand="entry.item.brand" :name="entry.item.name" :url="entry.item.url" :custom-icon="entry.item.iconUrl" :cached-icon="entry.item.cachedIcon" /><template v-else><img v-if="entry.item.icon" :src="entry.item.icon" alt="" width="40" height="40" @error="entry.item.icon = undefined" /><span v-else>{{ entry.name.slice(0, 1) }}</span></template><span v-if="entry.opened" class="site-open-indicator" aria-hidden="true" /></span>
           <span class="site-card__name"><Pin v-if="entry.pinned" :size="12" aria-label="已置顶" /><span>{{ entry.name }}</span></span>
         </button>
+        <button class="site-card site-card--add" type="button" aria-label="添加" @click="$emit('add')">
+          <span class="site-icon"><Plus :size="24" :stroke-width="1.5" /></span>
+          <span class="site-card__name">添加</span>
+        </button>
       </div>
       <FloatingTransition><div v-if="menu" class="entry-menu" role="menu" :style="{ left: `${menu.x}px`, top: `${menu.y}px` }" @keydown.esc.stop="closeMenu" @contextmenu.prevent>
         <button type="button" role="menuitem" @click="action('hide')">隐藏</button>
