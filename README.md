@@ -14,7 +14,19 @@ npm run dev
 npm run build
 ```
 
-开发端口以 Vite 启动输出为准；生产静态资源输出至 `dist/`。网站合集配置当前使用 localStorage 保存。
+开发端口以 Vite 启动输出为准；生产静态资源输出至 `dist/`。在 Mira 桌面应用中，网站、小程序条目和使用偏好保存在 Workbench 自己的 Mira SQLite namespace 中；首次启动会从旧版 localStorage 只读迁移网站数据。独立浏览器开发页使用 localStorage 作为回退存储。
+
+## v0.1.1
+
+本版本在 `v0.1.0` 的网站合集和内部标签基础上，补齐了小程序宿主能力并改善了日常使用体验：
+
+- 支持从本地 `.miniapp` / `.zip` 或 HTTPS `manifest.json` 安装小程序；在线安装会校验来源、包大小、SHA-256 和包内清单的一致性。
+- 支持小程序的权限审阅、更新、卸载、目录读写授权，以及独立数据和 SQLite namespace；模型调用、联网搜索、通知和文件能力按权限逐项控制。
+- 支持 AI 对话、联网搜索和通知等 Mira SDK 能力的安全桥接，小程序不能直接取得 Mira 身份或任意文件路径。
+- 增加标签缓存数量和“在默认浏览器中打开新窗口”偏好，网站和小程序可隐藏、置顶、编辑或卸载。
+- 首页增加“添加”卡片，优化窄窗口下的网格布局和滚动适配。
+
+验证命令：`npm test`、`npm run build`。
 
 ## Mira 内容区边界
 
@@ -28,7 +40,7 @@ Mira 标题栏：原生窗口按钮 / 应用选择器 / 窗口级操作
 
 切换应用时，Harness 的侧栏和任务区整体被替换。Workbench 不在 Harness 右侧任务面板中嵌套，也不重复绘制原生标题栏。根元素使用宿主分配的完整宽高；宿主容器需有确定高度，且在 flex 布局中允许内容区收缩。
 
-合集内部滚动，标签栏保持可见；网站视图填满标签栏以下空间。网页承载、安全策略和宿主能力桥接仍需通过 Mira 的正式子应用契约接入。
+合集内部滚动，标签栏保持可见；网站视图填满标签栏以下空间。网站承载使用独立的网页容器或受限 iframe；被目标网站阻止嵌入时可改用系统浏览器打开。小程序能力通过 Mira App SDK 桥接，并由 Workbench 在每次调用前校验权限。
 
 ## 已验证与待验收
 
@@ -53,7 +65,7 @@ npm run install:test
 
 需要独立测试用户目录时，使用 `MIRA_TEST_HOME=/tmp/mira-workbench-local-20261104 npm run install:test`，并用相同环境变量启动 Mira。
 
-`npm run build` 生成正式 ID `mira-workbench`；`npm run build:test` 生成 `mira-workbench-test` 且 `test: true`。两者均在 `dist/` 根目录生成 `app-manifest.json`，网站配置使用独立存储键。手动复制时，将整个 `dist/` 的内容放到 `~/.mira/apps/<清单id>/`，不要再嵌套一层 dist。
+`npm run build` 生成正式 ID `mira-workbench`；`npm run build:test` 生成 `mira-workbench-test` 且 `test: true`。两者均在 `dist/` 根目录生成 `app-manifest.json`，版本取自 `package.json`。手动复制时，将整个 `dist/` 的内容放到 `~/.mira/apps/<清单id>/`，不要再嵌套一层 dist。
 
 测试时注意：
 
@@ -63,7 +75,7 @@ npm run install:test
 - 如果应用显示 DEV 标识但图标缺失或“打开目录”失败，先检查目录名与清单 ID 是否一致，以及清单指定的入口和图标文件是否存在。修正后重新进入“设置 → 应用扩展”，必要时重启 Mira 重新扫描。
 - Windows PowerShell 使用独立测试用户目录时，可先运行 `$env:MIRA_TEST_HOME = 'C:\mira-workbench-test'`，再执行 `npm run install:test`，并使用同一环境变量启动 Mira。
 
-[Mira-Harness](https://github.com/MiraWorkspace/Mira-Harness) 提供本地应用扫描、静态入口、应用扩展设置页与标题栏选择器，并支持线上目录读取与缓存。线上下载安装与升级替换尚未接入。
+[Mira-Harness](https://github.com/MiraWorkspace/Mira-Harness) 提供本地应用扫描、静态入口、应用扩展设置页与标题栏选择器，并支持线上目录读取与缓存。Workbench 的小程序在线安装由 Workbench 自己完成，使用受限 HTTPS 下载接口；Mira 应用本身的线上下载安装与升级替换仍由宿主负责。
 
 2026-11-04 已在独立用户目录的 macOS Electron 中确认：设置和前台选择器识别测试包，切换后加载本地 Workbench 首页及 17 个网站卡片。此结果不代表远端网站登录或 Windows 安装版已通过。产品范围见 [PRD](PRD.md)。
 

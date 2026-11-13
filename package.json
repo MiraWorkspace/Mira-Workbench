@@ -1,6 +1,6 @@
 {
   "name": "mira-workbench",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "description": "Mira's optional website collection and in-app browsing sub-application.",
